@@ -17,11 +17,19 @@ limitations under the License.
 #include <stdio.h>
 #include <string>
 #include <iostream>
+#include <fstream>
 
+#include "ir/ir.h"
+#include "ir/json_loader.h"
 #include "lib/gc.h"
 #include "lib/crash.h"
-#include "backends/verify/translate/option.h"
+#include "lib/nullstream.h"
+#include "backends/verify/translate/options.h"
 #include "backends/verify/translate/version.h"
+#include "backends/verify/translate/translate.h"
+#include "frontends/common/applyOptionsPragmas.h"
+#include "frontends/common/parseInput.h"
+#include "frontends/p4/frontend.h"
 
 int main(int argc, char *const argv[]) {
     setup_gc_logging();
@@ -38,8 +46,52 @@ int main(int argc, char *const argv[]) {
     }
     if (::errorCount() > 0)
         return 1;
+    std::cout << options.file << std::endl;
+    const IR::P4Program *program = nullptr;
+    auto hook = options.getDebugHook();
+    if (options.loadIRFromJson == false) {
+        program = P4::parseP4File(options);
 
-    std::cout << "translate()" << std::endl;
-    std::cout << "verify()" << std::endl;
+        if (program == nullptr || ::errorCount() > 0)
+            return 1;
+        try {
+            P4::P4COptionPragmaParser optionsPragmaParser;
+            program->apply(P4::ApplyOptionsPragmas(optionsPragmaParser));
+
+            P4::FrontEnd frontend;
+            frontend.addDebugHook(hook);
+            program = frontend.run(options, program);
+            std::cout << program->srcInfo.toDebugString() << std::endl;
+        } catch (const std::exception &bug) {
+            std::cerr << bug.what() << std::endl;
+            return 1;
+        }
+        if (program == nullptr || ::errorCount() > 0)
+            return 1;
+    } else{
+        std::ifstream json(options.file);
+        if (json) {
+            JSONLoader loader(json);
+            const IR::Node* node = nullptr;
+            loader >> node;
+            if (!(program = node->to<IR::P4Program>()))
+                error(ErrorType::ERR_INVALID, "%s is not a P4Program in json format", options.file);
+        } else {
+            error(ErrorType::ERR_IO, "Can't open %s", options.file); }
+    }
+    std::cout << program->objects.size() << std::endl;
+    
+    std::cout << program->node_type_name() << std::endl;
+    // for(auto node:program->objects){
+    //     std::cout << node->node_type_name() << std::endl;
+    //     std::cout << node->id << std::endl;
+    // }
+    std::ostream* out = openFile(options.outputBplFile, false);
+    if (out != nullptr) {
+        Translator translator(*out);
+        translator.translate(program);
+        translator.writeToFile();
+        out->flush();
+    }
     return 0;
 }
