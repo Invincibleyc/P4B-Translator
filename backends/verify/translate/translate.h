@@ -18,6 +18,7 @@ private:
 	std::map<cstring, const IR::Type_Header*> headers;
 	std::map<cstring, const IR::Type_Struct*> structs;
 	std::set<cstring> declared;
+	BoogieProcedure* currentProcedure=nullptr;
 public:
 	Translator(std::ostream &out);
 	void writeToFile();
@@ -25,6 +26,7 @@ public:
 	void addNecessaryProcedures();
 	void addProcedure(BoogieProcedure procedure);
 	void addDeclaration(cstring decl);
+	void addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType);
 	void analyzeProgram(const IR::P4Program *program);
 	void incIndent();
 	void decIndent();
@@ -57,6 +59,15 @@ public:
 	cstring translate(const IR::Path *path);
 	cstring translate(const IR::SelectExpression *selectExpression);
 	cstring translate(const IR::Argument *argument);
+	cstring translate(const IR::Constant *constant);
+
+	// Type
+	cstring translate(const IR::Type *type);
+	cstring translate(const IR::Type_Bits *typeBits);
+	cstring translate(const IR::Type_Boolean *typeBoolean);
+
+	// Operation (also Expression)
+	cstring translate(const IR::Operation_Binary *opBinary);
 
 	void translate(const IR::P4Program *program);
 	void translate(const IR::Type_Error *typeError);
@@ -76,11 +87,13 @@ public:
 	void translate(const IR::Type_Control *typeControl);
 	void translate(const IR::Type_Package *typePackage);
 
-	
 	void translate(const IR::P4Parser *p4Parser);
 	void translate(const IR::ParserState *parserState);
 	void translate(const IR::P4Control *p4Control);
 	void translate(const IR::Method *method);
+	void translate(const IR::P4Action *p4Action);
+	void translate(const IR::P4Table *p4Table);
+	cstring translate(const IR::Parameter *parameter);
 };
 
 #endif

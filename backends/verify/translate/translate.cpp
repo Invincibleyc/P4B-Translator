@@ -1,4 +1,5 @@
 #include "translate.h"
+#include <sstream>
 
 Translator::Translator(std::ostream &out) : out(out){
     // init main procedure
@@ -103,6 +104,13 @@ void Translator::addDeclaration(cstring decl){
     declaration += decl;
 }
 
+void Translator::addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType){
+    cstring functionName = op+"."+typeName;
+    cstring res = "\nfunction {:bvbuiltin \""+opbuiltin+"\"} "+functionName;
+    res += "(left:"+typeName+", right:"+typeName+") returns("+returnType+");\n";
+    addDeclaration(res);
+}
+
 void Translator::analyzeProgram(const IR::P4Program *program){
     for(auto obj:program->objects){
         if (auto typeHeader = obj->to<IR::Type_Header>()) {
@@ -190,6 +198,15 @@ cstring Translator::translate(const IR::Statement *stat){
     if (auto methodCall = stat->to<IR::MethodCallStatement>()){
         return translate(methodCall);
     }
+    else if (auto ifStatement = stat->to<IR::IfStatement>()){
+        return translate(ifStatement);
+    }
+    else if (auto blockStatement = stat->to<IR::BlockStatement>()){
+        return translate(blockStatement);
+    }
+    else if (auto assignmentStatement = stat->to<IR::AssignmentStatement>()){
+        return translate(assignmentStatement);
+    }
     return "";
 }
 
@@ -198,21 +215,48 @@ cstring Translator::translate(const IR::ReturnStatement *returnStatement){ retur
 cstring Translator::translate(const IR::EmptyStatement *emptyStatement){ return ""; }
 
 cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement){
-    return "";
+    cstring res = "";
+    res = getIndent()+translate(assignmentStatement->left)+" := "
+        +translate(assignmentStatement->right)+";\n";
+    return res;
 }
 
 cstring Translator::translate(const IR::IfStatement *ifStatement){
-    return "";
+    cstring res = "";
+    res += getIndent()+"if(";
+    res += translate(ifStatement->condition);
+    res += "){\n";
+    incIndent();
+    res += translate(ifStatement->ifTrue);
+    decIndent();
+    res += getIndent()+"}\n";
+    if(ifStatement->ifFalse!=nullptr){
+        res += getIndent()+"else{\n";
+        incIndent();
+        res += translate(ifStatement->ifFalse);
+        decIndent();
+        res += getIndent()+"}\n";
+    }
+    return res;
 }
 
 cstring Translator::translate(const IR::BlockStatement *blockStatement){
-    return "";
+    cstring res = "";
+    for(auto statOrDecl:blockStatement->components){
+        res += translate(statOrDecl);
+    }
+    return res;
 }
-
 
 cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement){
     cstring expr = translate(methodCallStatement->methodCall);
     std::cout << "methodcall: " << methodCallStatement->methodCall->node_type_name() << std::endl;
+    if(expr.find("verify_checksum") != nullptr){
+        return getIndent()+"// verify_checksum\n";
+    }
+    else if(expr.find("update_checksum") != nullptr){
+        return getIndent()+"// update_checksum\n";
+    }
     return getIndent()+"call "+expr+";\n";
 }
 
@@ -231,12 +275,39 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto pathExpression = expression->to<IR::PathExpression>()){
         return translate(pathExpression);
     }
+    else if (auto selectExpression = expression->to<IR::SelectExpression>()){
+        return translate(selectExpression);
+    }
+    else if (auto methodCallExpression = expression->to<IR::MethodCallExpression>()){
+        return translate(methodCallExpression);
+    }
+    else if (auto opBinary = expression->to<IR::Operation_Binary>()){
+        return translate(opBinary);
+    }
+    else if (auto constant = expression->to<IR::Constant>()){
+        return translate(constant);
+    }
     return "";
 }
 
 cstring Translator::translate(const IR::MethodCallExpression *methodCallExpression){
     std::cout << "method: " << methodCallExpression->method->node_type_name() << std::endl;
-    cstring res = translate(methodCallExpression->method)+"(";
+    cstring res = "";
+    cstring method = translate(methodCallExpression->method);
+
+    std::string s = method.c_str();
+    std::string::size_type idx = s.find("isValid");
+    if(idx != std::string::npos){
+        int i = idx;
+        return "isValid["+s.substr(0, idx-1)+"]";
+        // std::cout << s.substr(0, idx-1) << std::endl;
+        // std::cout << "find... " << i << std::endl;
+    }
+    // if(method.find("isValid") != nullptr){
+    //     std::string s = method.c_str();
+    //     std::cout << "find... " << s.find("isValid") << std::endl;
+    // }
+    res += method+"(";
     int cnt = methodCallExpression->arguments->size();
     for(auto arg:*methodCallExpression->arguments){
         res += translate(arg);
@@ -245,11 +316,12 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             res += ", ";
     }
     res += ")";
+    // TODO: succ
     return res;
 }
 
 cstring Translator::translate(const IR::Member *member){
-    std::cout << "member: " << member->member.toString() << std::endl;
+    // std::cout << "member: " << member->member.toString() << std::endl;
     if(member->member.toString()=="extract")
         return "packet_in.extract";
     return translate(member->expr)+"."+member->member.toString();
@@ -264,15 +336,154 @@ cstring Translator::translate(const IR::Path *path){
 }
 
 cstring Translator::translate(const IR::Declaration *decl){
+    if (auto p4Action = decl->to<IR::P4Action>()){
+        translate(p4Action);
+    }
+    else if (auto p4Table = decl->to<IR::P4Table>()){
+        translate(p4Table);
+    }
     return "";
 }
 
 cstring Translator::translate(const IR::SelectExpression *selectExpression){
-    return "";
+    cstring res = "";
+    int cnt = selectExpression->selectCases.size();
+    std::cout << cnt << std::endl;
+    for(auto selectCase:selectExpression->selectCases){
+        if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+            res += getIndent()+"else{\n";
+            incIndent();
+            res += getIndent()+"call "+translate(selectCase->state)+"();\n";
+            decIndent();
+            res += getIndent()+"}\n";
+        }
+        else{
+            if(cnt == selectExpression->selectCases.size())
+                res += getIndent()+"if(";
+            else
+                res += getIndent()+"else if(";
+
+            int sz = selectExpression->select->components.size();
+            int cnt2 = 0;
+            for(auto expr:selectExpression->select->components){
+                res += translate(expr);
+                res += " == ";
+                if(auto constant = selectCase->keyset->to<IR::Constant>()){
+                    std::stringstream ss;
+                    ss << constant->value;
+                    res += ss.str()+translate(constant->type);
+                }
+                cnt2++;
+                // TODO: Mask
+                if(cnt2 < sz)
+                    res += " && ";
+            }
+            res += "){\n";
+            incIndent();
+            res += getIndent()+"call "+translate(selectCase->state)+"();\n";
+            decIndent();
+            res += getIndent()+"}\n";
+        }
+        cnt--;
+    }
+    return res;
 }
 
 cstring Translator::translate(const IR::Argument *argument){
     return translate(argument->expression);
+}
+
+cstring Translator::translate(const IR::Constant *constant){
+    std::stringstream ss;
+    ss << constant->value;
+    return ss.str()+translate(constant->type);
+}
+
+// Type
+cstring Translator::translate(const IR::Type *type){
+    if (auto typeBits = type->to<IR::Type_Bits>()){
+        return translate(typeBits);
+    }
+    else if (auto typeBoolean = type->to<IR::Type_Boolean>()){
+        return translate(typeBoolean);
+    }
+    return "";
+}
+
+cstring Translator::translate(const IR::Type_Bits *typeBits){
+    std::stringstream ss;
+    ss << "bv" << typeBits->size;
+    return ss.str();
+}
+
+cstring Translator::translate(const IR::Type_Boolean *typeBoolean){
+    return "bool";
+}
+
+cstring Translator::translate(const IR::Operation_Binary *opBinary){
+    cstring typeName = translate(opBinary->left->type);
+    cstring returnType = translate(opBinary->type);
+    if (auto shl = opBinary->to<IR::Shl>()) {
+        addFunction("shl", "bvshl", typeName, returnType);
+        return "shl."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto shr = opBinary->to<IR::Shr>()) {
+        addFunction("shr", "bvlshr", typeName, returnType);
+        return "shr."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto mul = opBinary->to<IR::Mul>()) {
+        addFunction("mul", "bvmul", typeName, returnType);
+        return "mul."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto add = opBinary->to<IR::Add>()) {
+        addFunction("add", "bvadd", typeName, returnType);
+        return "add."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto addSat = opBinary->to<IR::AddSat>()) {
+        addFunction("add", "bvadd", typeName, returnType);
+        return "add."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto sub = opBinary->to<IR::Sub>()) {
+        addFunction("sub", "bvsub", typeName, returnType);
+        return "sub."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto subSat = opBinary->to<IR::SubSat>()) {
+        addFunction("sub", "bvsub", typeName, returnType);
+        return "sub."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto bAnd = opBinary->to<IR::BAnd>()) {
+        addFunction("band", "bvand", typeName, returnType);
+        return "band."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto bOr = opBinary->to<IR::BOr>()) {
+        addFunction("bor", "bvor", typeName, returnType);
+        return "bor."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto bXor = opBinary->to<IR::BXor>()) {
+        addFunction("bxor", "bvxor", typeName, returnType);
+        return "bxor."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto geq = opBinary->to<IR::Geq>()) {
+        addFunction("bsge", "bvsge", typeName, returnType);
+        return "bsge."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto leq = opBinary->to<IR::Leq>()) {
+        addFunction("bsle", "bvsle", typeName, returnType);
+        return "bsle."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto grt = opBinary->to<IR::Grt>()) {
+        addFunction("bugt", "bvugt", typeName, returnType);
+        return "bugt."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto lss = opBinary->to<IR::Lss>()) {
+        addFunction("bult", "bvult", typeName, returnType);
+        return "bult."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+    }
+    else if (auto arrayIndex = opBinary->to<IR::ArrayIndex>()) {
+        return "";
+    }
+    else
+        return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
 }
 
 void Translator::translate(const IR::P4Program *program){
@@ -403,7 +614,7 @@ void Translator::translate(const IR::ParserState *parserState){
         return;
     BoogieProcedure state = BoogieProcedure(stateName);
     state.addDeclaration("\n//Parser State "+stateName+"\n");
-    state.addDeclaration("procedure {:inline 1} "+stateName+"\n");
+    state.addDeclaration("procedure {:inline 1} "+stateName+"()\n");
     incIndent();
     for(auto statOrDecl:parserState->components){
         state.addStatement(translate(statOrDecl));
@@ -414,6 +625,7 @@ void Translator::translate(const IR::ParserState *parserState){
         }
         else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
             state.addStatement(translate(parserState->selectExpression));
+            std::cout << "here" << std::endl;
         }
     }
     // TODO: add succ
@@ -422,9 +634,50 @@ void Translator::translate(const IR::ParserState *parserState){
 }
 
 void Translator::translate(const IR::P4Control *p4Control){
-    // std::cout << "translate p4Control" << std::endl;
+    cstring controlName = p4Control->name.toString();
+    BoogieProcedure control = BoogieProcedure(controlName);
+    control.addDeclaration("\n// Control "+controlName+"\n");
+    control.addDeclaration("procedure {:inline 1} "+controlName+"()\n");
+    incIndent();
+    for(auto statOrDecl:p4Control->body->components){
+        control.addStatement(translate(statOrDecl));
+    }
+    decIndent();
+    addProcedure(control);
+    for(auto controlLocal:p4Control->controlLocals){
+        translate(controlLocal);
+    }
 }
 
 void Translator::translate(const IR::Method *method){
     // std::cout << "translate method" << std::endl;
+}
+
+void Translator::translate(const IR::P4Action *p4Action){
+    cstring actionName = p4Action->name.toString();
+    BoogieProcedure action = BoogieProcedure(actionName);
+    action.addDeclaration("\n// Action "+actionName+"\n");
+    action.addDeclaration("procedure {:inline 1} "+actionName+"(");
+    // TODO: add parameters
+    int cnt = p4Action->parameters->parameters.size();
+    for(auto parameter:p4Action->parameters->parameters){
+        action.addDeclaration(translate(parameter));
+        cnt--;
+        if(cnt != 0)
+            action.addDeclaration(", ");
+    }
+    action.addDeclaration(")\n");
+    incIndent();
+    action.addStatement(translate(p4Action->body));
+    decIndent();
+    addProcedure(action);
+}
+
+void Translator::translate(const IR::P4Table *p4Table){
+    cstring tableName = p4Table->name.toString();
+    BoogieProcedure table = BoogieProcedure(tableName);
+}
+
+cstring Translator::translate(const IR::Parameter *parameter){
+    return parameter->name.toString()+":"+translate(parameter->type);
 }
