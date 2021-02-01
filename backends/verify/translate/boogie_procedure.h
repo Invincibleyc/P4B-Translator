@@ -11,6 +11,7 @@ class BoogieProcedure{
 	cstring body;
 	std::vector<cstring> modifies;
 	std::vector<BoogieStatement> statements;
+	std::vector<cstring> succ;
 	bool hasImplementation = false;
 public:
 	BoogieProcedure();
@@ -24,6 +25,7 @@ public:
 	void addImplementation(const cstring& body);
 	void addDeclaration(const cstring& declaration);
 	void setImplemented();
+	void addSucc(cstring name);
 	cstring toString();
 };
 

@@ -4,21 +4,18 @@ BoogieProcedure::BoogieProcedure(){
 	name = cstring("");
 	declaration = cstring("");
 	body = cstring("");
-	modifies = std::vector<cstring>(0);
 }
 
 BoogieProcedure::BoogieProcedure(const cstring& name){
 	this->name = name;
 	declaration = cstring("");
 	body = cstring("");
-	modifies = std::vector<cstring>(0);
 }
 
 BoogieProcedure::BoogieProcedure(cstring& name, cstring& decl, cstring& body){
 	this->name = name;
 	this->declaration = declaration;
 	this->body = body;
-	modifies = std::vector<cstring>(0); 
 }
 
 void BoogieProcedure::addModifiedGlobalVariables(cstring variable){
@@ -30,10 +27,12 @@ void BoogieProcedure::addFrontStatement(BoogieStatement statement){
 }
 
 void BoogieProcedure::addStatement(const cstring &cont){
+	this->hasImplementation = true;
 	addStatement(BoogieStatement(cont));
 }
 
 void BoogieProcedure::addStatement(BoogieStatement statement){
+	this->hasImplementation = true;
 	statements.push_back(statement);
 }
 
@@ -50,19 +49,12 @@ void BoogieProcedure::setImplemented(){
 	this->hasImplementation = true;
 }
 
+void BoogieProcedure::addSucc(cstring name){
+	succ.push_back(name);
+}
+
 cstring BoogieProcedure::toString(){
-	cstring res = "";
-	if(hasImplementation){
-		res += "procedure "+name+"(){\n";
-		if(!statements.empty()){
-			for(BoogieStatement statement:statements){
-				res += statement.toString();
-			}
-		}
-		res += "}\n";
-	}
-	else
-		res = declaration+body;
+	cstring res = declaration;
 	if(!modifies.empty()){
 		res += "	modifies ";
 		int cnt = modifies.size();
@@ -74,6 +66,15 @@ cstring BoogieProcedure::toString(){
 			}
 		}
 		res += ";\n";
+	}
+	if(hasImplementation){
+		res += "{\n";
+		if(!statements.empty()){
+			for(BoogieStatement statement:statements){
+				res += statement.toString();
+			}
+		}
+		res += "}\n";
 	}
 	return res;
 }
