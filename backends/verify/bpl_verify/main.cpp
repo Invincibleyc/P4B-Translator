@@ -46,7 +46,6 @@ int main(int argc, char *const argv[]) {
     }
     if (::errorCount() > 0)
         return 1;
-    std::cout << options.file << std::endl;
     const IR::P4Program *program = nullptr;
     auto hook = options.getDebugHook();
     if (options.loadIRFromJson == false) {
@@ -61,7 +60,6 @@ int main(int argc, char *const argv[]) {
             P4::FrontEnd frontend;
             frontend.addDebugHook(hook);
             program = frontend.run(options, program);
-            std::cout << program->srcInfo.toDebugString() << std::endl;
         } catch (const std::exception &bug) {
             std::cerr << bug.what() << std::endl;
             return 1;
@@ -79,13 +77,6 @@ int main(int argc, char *const argv[]) {
         } else {
             error(ErrorType::ERR_IO, "Can't open %s", options.file); }
     }
-    std::cout << program->objects.size() << std::endl;
-    
-    std::cout << program->node_type_name() << std::endl;
-    // for(auto node:program->objects){
-    //     std::cout << node->node_type_name() << std::endl;
-    //     std::cout << node->id << std::endl;
-    // }
     std::ostream* out = openFile(options.outputBplFile, false);
     if (out != nullptr) {
         Translator translator(*out);

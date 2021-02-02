@@ -9,16 +9,18 @@ class BoogieProcedure{
 	cstring name;
 	cstring declaration;
 	cstring body;
-	std::vector<cstring> modifies;
+	
 	std::vector<BoogieStatement> statements;
-	std::vector<cstring> succ;
 	bool hasImplementation = false;
 public:
+	std::set<cstring> modifies;
+	std::vector<cstring> succ;
 	BoogieProcedure();
 	BoogieProcedure(const cstring& name);
 	BoogieProcedure(cstring& name, cstring& decl, cstring& body);
 	void addDeclaration();
 	void addModifiedGlobalVariables(cstring variable);
+	void addFrontStatement(const cstring &cont);
 	void addFrontStatement(BoogieStatement statement);
 	void addStatement(const cstring &cont);
 	void addStatement(BoogieStatement statement);
@@ -26,6 +28,8 @@ public:
 	void addDeclaration(const cstring& declaration);
 	void setImplemented();
 	void addSucc(cstring name);
+	int getModifiesSize();
+	cstring getName();
 	cstring toString();
 };
 

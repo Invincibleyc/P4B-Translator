@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <map>
+#include <queue>
 #include "ir/ir.h"
 #include "boogie_procedure.h"
 #include "boogie_statement.h"
@@ -10,15 +11,19 @@
 class Translator{
 private:
 	BoogieProcedure mainProcedure;
-	std::vector<BoogieProcedure> procedures;
+	// std::vector<BoogieProcedure> procedures;
+	std::map<cstring, BoogieProcedure> procedures;
 	cstring declaration;
 	cstring code;
 	std::ostream& out;
 	int indent = 0;
 	std::map<cstring, const IR::Type_Header*> headers;
 	std::map<cstring, const IR::Type_Struct*> structs;
-	std::set<cstring> declared;
+	std::map<cstring, const IR::P4Action*> actions;
+	std::map<cstring, std::vector<cstring>> pred;
+	std::set<cstring> globalVariables;
 	BoogieProcedure* currentProcedure=nullptr;
+	cstring deparser=nullptr;
 public:
 	Translator(std::ostream &out);
 	void writeToFile();
@@ -31,6 +36,10 @@ public:
 	void incIndent();
 	void decIndent();
 	cstring getIndent();
+	void addGlobalVariables(cstring variable);
+	bool isGlobalVariable(cstring variable);
+	void updateModifiedVariables(cstring variable);
+	void addPred(cstring proc, cstring predProc);
 
 	void translate(const IR::Node *node);
 	void translate(const IR::Node *node, cstring arg);
@@ -60,11 +69,14 @@ public:
 	cstring translate(const IR::SelectExpression *selectExpression);
 	cstring translate(const IR::Argument *argument);
 	cstring translate(const IR::Constant *constant);
+	cstring translate(const IR::ConstructorCallExpression *constructorCallExpression);
 
 	// Type
 	cstring translate(const IR::Type *type);
 	cstring translate(const IR::Type_Bits *typeBits);
 	cstring translate(const IR::Type_Boolean *typeBoolean);
+	cstring translate(const IR::Type_Specialized *typeSpecialized);
+	cstring translate(const IR::Type_Name *typeName);
 
 	// Operation (also Expression)
 	cstring translate(const IR::Operation_Binary *opBinary);
@@ -73,6 +85,7 @@ public:
 	void translate(const IR::Type_Error *typeError);
 	void translate(const IR::Type_Extern *typeExtern);
 	void translate(const IR::Type_Enum *typeEnum);
+	void translate(const IR::Declaration_Instance *instance);
 
 	void translate(const IR::Type_Struct *typeStruct);
 	void translate(const IR::Type_Struct *typeStruct, cstring arg);
@@ -94,6 +107,7 @@ public:
 	void translate(const IR::P4Action *p4Action);
 	void translate(const IR::P4Table *p4Table);
 	cstring translate(const IR::Parameter *parameter);
+	void translate(const IR::ActionList *actionList, cstring arg);
 };
 
 #endif

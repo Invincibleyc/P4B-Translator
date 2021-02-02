@@ -19,7 +19,11 @@ BoogieProcedure::BoogieProcedure(cstring& name, cstring& decl, cstring& body){
 }
 
 void BoogieProcedure::addModifiedGlobalVariables(cstring variable){
-	modifies.push_back(variable);
+	modifies.insert(variable);
+}
+
+void BoogieProcedure::addFrontStatement(const cstring &cont){
+	addFrontStatement(BoogieStatement(cont));
 }
 
 void BoogieProcedure::addFrontStatement(BoogieStatement statement){
@@ -53,18 +57,30 @@ void BoogieProcedure::addSucc(cstring name){
 	succ.push_back(name);
 }
 
+int BoogieProcedure::getModifiesSize(){
+	return modifies.size();
+}
+
 cstring BoogieProcedure::toString(){
 	cstring res = declaration;
 	if(!modifies.empty()){
 		res += "	modifies ";
 		int cnt = modifies.size();
-		for(cstring variable:modifies){
-			res += variable;
-			cnt--;
-			if(cnt != 0){
+		std::set<cstring>::iterator iter;
+		for (iter=modifies.begin(); iter!=modifies.end(); iter++){
+	        res += *iter;
+	        cnt--;
+	        if(cnt != 0){
 				res += ", ";
 			}
-		}
+	    }
+		// for(cstring variable:modifies){
+		// 	res += variable;
+		// 	cnt--;
+		// 	if(cnt != 0){
+		// 		res += ", ";
+		// 	}
+		// }
 		res += ";\n";
 	}
 	if(hasImplementation){
@@ -77,4 +93,8 @@ cstring BoogieProcedure::toString(){
 		res += "}\n";
 	}
 	return res;
+}
+
+cstring BoogieProcedure::getName(){
+	return name;
 }

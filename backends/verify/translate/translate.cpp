@@ -8,29 +8,46 @@ Translator::Translator(std::ostream &out) : out(out){
     mainProcedure.addDeclaration("procedure mainProcedure()\n");
     mainProcedure.addStatement("    call clear_forward();\n");
     mainProcedure.addSucc("clear_forward");
+    addPred("clear_forward", "mainProcedure");
     mainProcedure.addStatement("    call clear_drop();\n");
     mainProcedure.addSucc("clear_drop");
+    addPred("clear_drop", "mainProcedure");
     mainProcedure.addStatement("    call clear_valid();\n");
     mainProcedure.addSucc("clear_valid");
+    addPred("clear_valid", "mainProcedure");
     mainProcedure.addStatement("    call clear_emit();\n");
     mainProcedure.addSucc("clear_emit");
+    addPred("clear_emit", "mainProcedure");
     mainProcedure.addStatement("    call init.stack.index();\n");
     mainProcedure.addSucc("init.stack.index");
+    addPred("init.stack.index", "mainProcedure");
     mainProcedure.setImplemented();
 
-    procedures = std::vector<BoogieProcedure>();
+    // procedures = std::vector<BoogieProcedure>();
 
     // declare necessary types and files
     declaration = cstring("type Ref;\n");
-    declaration += "var Heap:HeapType;\n";
+    // declaration += "var Heap:HeapType;\n";
+    // addGlobalVariables("Heap");
     declaration += "type HeaderStack = [int]Ref;\n";
     declaration += "var last:[HeaderStack]Ref;\n";
-
+    addGlobalVariables("last");
     declaration += "var forward:bool;\n";
+    addGlobalVariables("forward");
+    declaration += "var isValid:[Ref]bool;\n";
+    addGlobalVariables("isValid");
+    declaration += "var emit:[Ref]bool;\n";
+    addGlobalVariables("emit");
+    declaration += "var stack.index:[HeaderStack]int;\n";
+    addGlobalVariables("stack.index");
+    declaration += "var size:[HeaderStack]int;\n";
+    addGlobalVariables("size");
+    declaration += "var drop:bool;\n";
+    addGlobalVariables("drop");
 
     headers = std::map<cstring, const IR::Type_Header*>();
     structs = std::map<cstring, const IR::Type_Struct*>();
-    declared = std::set<cstring>();
+    globalVariables = std::set<cstring>();
 
     addNecessaryProcedures();
 }
@@ -63,7 +80,7 @@ void Translator::addNecessaryProcedures(){
     BoogieProcedure initStackIndex = BoogieProcedure("init.stack.index");
     initStackIndex.addDeclaration("procedure init.stack.index();\n");
     initStackIndex.addDeclaration("    ensures (forall s:HeaderStack::stack.index[s]==0);\n");
-    initStackIndex.addModifiedGlobalVariables("stack.index;");
+    initStackIndex.addModifiedGlobalVariables("stack.index");
     addProcedure(initStackIndex);
 
     BoogieProcedure extract = BoogieProcedure("packet_in.extract");
@@ -94,10 +111,17 @@ void Translator::addNecessaryProcedures(){
     reject.addDeclaration("    ensures drop==true;\n");
     reject.addModifiedGlobalVariables("drop");
     addProcedure(reject);
+
+    BoogieProcedure mark_to_drop = BoogieProcedure("mark_to_drop");
+    mark_to_drop.addDeclaration("procedure mark_to_drop();\n");
+    mark_to_drop.addDeclaration("    ensures drop==true;\n");
+    mark_to_drop.addModifiedGlobalVariables("drop");
+    addProcedure(mark_to_drop);
 }
 
 void Translator::addProcedure(BoogieProcedure procedure){
-    procedures.push_back(procedure);
+    // procedures.push_back(&procedure);
+    procedures[procedure.getName()] = procedure;
 }
 
 void Translator::addDeclaration(cstring decl){
@@ -119,6 +143,13 @@ void Translator::analyzeProgram(const IR::P4Program *program){
         else if (auto typeStruct = obj->to<IR::Type_Struct>()) {
             structs[typeStruct->name.toString()] = typeStruct;
         }
+        else if (auto p4Control = obj->to<IR::P4Control>()){
+            for(auto controlLocal:p4Control->controlLocals){
+                if (auto p4Action = controlLocal->to<IR::P4Action>()){
+                    actions[p4Action->name.toString()] = p4Action;
+                }
+            }
+        }
     }
 }
 
@@ -130,13 +161,74 @@ cstring Translator::getIndent(){
     return res;
 }
 
+void Translator::addGlobalVariables(cstring variable){
+    globalVariables.insert(variable);
+}
+
+bool Translator::isGlobalVariable(cstring variable){
+    return globalVariables.find(variable)!=globalVariables.end();
+}
+
+void Translator::updateModifiedVariables(cstring variable){
+    currentProcedure->addModifiedGlobalVariables(variable);
+}
+
+void Translator::addPred(cstring proc, cstring predProc){
+    // if(pred[proc]==nullptr)
+    //     pred[proc] = std::vector<cstring>(0);
+    pred[proc].push_back(predProc);
+}
+
 void Translator::writeToFile(){
+    addProcedure(mainProcedure);
+    std::queue<BoogieProcedure*> queue;
+    // queue.push(&mainProcedure);
+    for (std::map<cstring, BoogieProcedure>::iterator iter=procedures.begin();
+        iter!=procedures.end(); iter++){
+        queue.push(&iter->second);
+    }
+    while(!queue.empty()){
+        BoogieProcedure* procedure = queue.front();
+        int szBefore = procedure->getModifiesSize();
+        for(cstring succ:procedure->succ){
+            for (std::set<cstring>::iterator iter=procedures[succ].modifies.begin();
+                iter!=procedures[succ].modifies.end(); iter++){
+                procedure->addModifiedGlobalVariables(*iter);
+            }
+        }
+        int szAfter = procedure->getModifiesSize();
+        if(szBefore!=szAfter){
+            for(cstring predProc:pred[procedure->getName()]){
+                queue.push(&procedures[predProc]);
+            }
+        }
+        queue.pop();
+    }
+
     out << declaration;
-    out << "\n";
-    out << mainProcedure.toString();
-    for(BoogieProcedure procedure:procedures){
-        out << "\n";
-        out << procedure.toString();
+    // out << "\n";
+    // out << mainProcedure.toString();
+    // std::cout << mainProcedure.getName() << std::endl;
+    // std::cout << "Succ:" << std::endl;
+    // for(cstring succ:mainProcedure.succ){
+    //     std::cout << "  " << succ << std::endl;
+    // }
+    // for(BoogieProcedure procedure:procedures){
+    //     out << "\n";
+    //     out << procedure.toString();
+    // }
+    std::map<cstring, BoogieProcedure>::iterator iter;
+    for (iter=procedures.begin(); iter!=procedures.end(); iter++){
+        if(iter->first != deparser){
+            // std::cout << iter->first << std::endl;
+            // std::cout << "Succ:" << std::endl;
+            // for(cstring succ:iter->second.succ){
+            //     std::cout << "  " << succ << std::endl;
+            // }
+            // std::cout << std::endl;
+            out << "\n";
+            out << iter->second.toString();
+        }
     }
 }
 
@@ -173,6 +265,9 @@ void Translator::translate(const IR::Node *node){
     }
     else if (auto method = node->to<IR::Method>()) {
         translate(method);
+    }
+    else if (auto instance = node->to<IR::Declaration_Instance>()) {
+        translate(instance);
     }
     else{
         std::cout << node->node_type_name() << std::endl;
@@ -216,8 +311,15 @@ cstring Translator::translate(const IR::EmptyStatement *emptyStatement){ return 
 
 cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement){
     cstring res = "";
-    res = getIndent()+translate(assignmentStatement->left)+" := "
+    cstring left = translate(assignmentStatement->left);
+    updateModifiedVariables(left);
+    res = getIndent()+left+" := "
         +translate(assignmentStatement->right)+";\n";
+    if(left=="standard_metadata.egress_spec"){
+        res += getIndent()+"forward := true;\n";
+        currentProcedure->addModifiedGlobalVariables("forward");
+    }
+
     return res;
 }
 
@@ -250,7 +352,6 @@ cstring Translator::translate(const IR::BlockStatement *blockStatement){
 
 cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement){
     cstring expr = translate(methodCallStatement->methodCall);
-    std::cout << "methodcall: " << methodCallStatement->methodCall->node_type_name() << std::endl;
     if(expr.find("verify_checksum") != nullptr){
         return getIndent()+"// verify_checksum\n";
     }
@@ -287,11 +388,13 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto constant = expression->to<IR::Constant>()){
         return translate(constant);
     }
+    else if (auto constructorCallExpression = expression->to<IR::ConstructorCallExpression>()){
+        return translate(constructorCallExpression);
+    }
     return "";
 }
 
 cstring Translator::translate(const IR::MethodCallExpression *methodCallExpression){
-    std::cout << "method: " << methodCallExpression->method->node_type_name() << std::endl;
     cstring res = "";
     cstring method = translate(methodCallExpression->method);
 
@@ -307,6 +410,10 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     //     std::string s = method.c_str();
     //     std::cout << "find... " << s.find("isValid") << std::endl;
     // }
+
+    currentProcedure->addSucc(method);
+    addPred(method, currentProcedure->getName());
+
     res += method+"(";
     int cnt = methodCallExpression->arguments->size();
     for(auto arg:*methodCallExpression->arguments){
@@ -348,16 +455,19 @@ cstring Translator::translate(const IR::Declaration *decl){
 cstring Translator::translate(const IR::SelectExpression *selectExpression){
     cstring res = "";
     int cnt = selectExpression->selectCases.size();
-    std::cout << cnt << std::endl;
     for(auto selectCase:selectExpression->selectCases){
         if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+            cstring nextState = translate(selectCase->state);
             res += getIndent()+"else{\n";
             incIndent();
-            res += getIndent()+"call "+translate(selectCase->state)+"();\n";
+            res += getIndent()+"call "+nextState+"();\n";
+            currentProcedure->addSucc(nextState);
+            addPred(nextState, currentProcedure->getName());
             decIndent();
             res += getIndent()+"}\n";
         }
         else{
+            cstring nextState = translate(selectCase->state);
             if(cnt == selectExpression->selectCases.size())
                 res += getIndent()+"if(";
             else
@@ -380,7 +490,9 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression){
             }
             res += "){\n";
             incIndent();
-            res += getIndent()+"call "+translate(selectCase->state)+"();\n";
+            res += getIndent()+"call "+nextState+"();\n";
+            currentProcedure->addSucc(nextState);
+            addPred(nextState, currentProcedure->getName());
             decIndent();
             res += getIndent()+"}\n";
         }
@@ -399,6 +511,10 @@ cstring Translator::translate(const IR::Constant *constant){
     return ss.str()+translate(constant->type);
 }
 
+cstring Translator::translate(const IR::ConstructorCallExpression *constructorCallExpression){
+    return translate(constructorCallExpression->constructedType);
+}
+
 // Type
 cstring Translator::translate(const IR::Type *type){
     if (auto typeBits = type->to<IR::Type_Bits>()){
@@ -406,6 +522,12 @@ cstring Translator::translate(const IR::Type *type){
     }
     else if (auto typeBoolean = type->to<IR::Type_Boolean>()){
         return translate(typeBoolean);
+    }
+    else if (auto typeSpecialized = type->to<IR::Type_Specialized>()){
+        return translate(typeSpecialized);
+    }
+    else if (auto typeName = type->to<IR::Type_Name>()){
+        return translate(typeName);
     }
     return "";
 }
@@ -418,6 +540,14 @@ cstring Translator::translate(const IR::Type_Bits *typeBits){
 
 cstring Translator::translate(const IR::Type_Boolean *typeBoolean){
     return "bool";
+}
+
+cstring Translator::translate(const IR::Type_Specialized *typeSpecialized){
+    return typeSpecialized->baseType->toString();
+}
+
+cstring Translator::translate(const IR::Type_Name *typeName){
+    return translate(typeName->path);
 }
 
 cstring Translator::translate(const IR::Operation_Binary *opBinary){
@@ -488,7 +618,7 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
 
 void Translator::translate(const IR::P4Program *program){
     analyzeProgram(program);
-    std::cout << "translate P4Program" << std::endl;
+    // std::cout << "translate P4Program" << std::endl;
     // Add main program
 
     // Translate objects
@@ -509,8 +639,37 @@ void Translator::translate(const IR::Type_Enum *typeEnum){
     // std::cout << "translate Type_Enum" << std::endl;
 }
 
+void Translator::translate(const IR::Declaration_Instance *instance){
+    cstring typeName = translate(instance->type);
+    cstring name = instance->name.toString();
+    std::cout << typeName << std::endl;
+    std::cout << name << std::endl;
+    if(typeName=="V1Switch"){
+        BoogieProcedure main = BoogieProcedure(name);
+        main.addDeclaration("procedure {:inline 1} "+name+"()\n");
+        incIndent();
+        int cnt = instance->arguments->size();
+        for(auto argument:*instance->arguments){
+            cnt--;
+            if(cnt != 0){
+                cstring procName = translate(argument->expression);
+                main.addStatement(getIndent()+"call "+procName+"();\n");
+                main.addSucc(procName);
+                addPred(procName, name);
+            }
+            else
+                deparser = translate(argument->expression);
+        }
+        decIndent();
+        // add children
+        addProcedure(main);
+        mainProcedure.addStatement("    call "+name+"();\n");
+        mainProcedure.addSucc(name);
+        addPred(name, mainProcedure.getName());
+    }
+}
+
 void Translator::translate(const IR::Type_Struct *typeStruct){
-    std::cout << "translate Struct " << typeStruct->name << std::endl;
     cstring structName = typeStruct->name.toString();
     addDeclaration("\n// Struct "+structName+"\n");
     if(structName=="headers"){
@@ -531,14 +690,13 @@ void Translator::translate(const IR::Type_Struct *typeStruct){
 }
 
 void Translator::translate(const IR::Type_Struct *typeStruct, cstring arg){
-    std::cout << "translate Struct " << typeStruct->name << std::endl;
     for(const IR::StructField* field:typeStruct->fields){
         translate(field, arg);
     }
 }
 
 void Translator::translate(const IR::StructField *field){
-    std::cout << "translate StructField" << std::endl;
+    // std::cout << "translate StructField" << std::endl;
 }
 
 void Translator::translate(const IR::StructField *field, cstring arg){
@@ -561,6 +719,7 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     else if(field->type->node_type_name() == "Type_Bits"){
         auto typeBits = field->type->to<IR::Type_Bits>();
         addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeBits->size)+";\n");
+        addGlobalVariables(arg+"."+field->name);
     }
     else if(field->type->node_type_name() == "Type_Stack"){
 
@@ -571,12 +730,13 @@ void Translator::translate(const IR::Type_Header *typeHeader){
     // for(const IR::StructField* field:typeHeader->fields){
     //     translate(field);
     // }
-    std::cout << "translate typeHeader" << std::endl;
+    // std::cout << "translate typeHeader" << std::endl;
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
     addDeclaration("var "+arg+":Ref;\n");
+    addGlobalVariables(arg);
     for(const IR::StructField* field:typeHeader->fields){
         translate(field, arg);
     }
@@ -601,6 +761,7 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     parser.addDeclaration("procedure {:inline 1} "+parserName+"()\n");
     parser.addStatement("    call start();\n");
     parser.addSucc("start");
+    addPred("start", parserName);
     addProcedure(parser);
     for(auto state:p4Parser->states){
         translate(state);
@@ -613,6 +774,7 @@ void Translator::translate(const IR::ParserState *parserState){
     if(stateName=="accept" || stateName=="reject")
         return;
     BoogieProcedure state = BoogieProcedure(stateName);
+    currentProcedure = &state;
     state.addDeclaration("\n//Parser State "+stateName+"\n");
     state.addDeclaration("procedure {:inline 1} "+stateName+"()\n");
     incIndent();
@@ -621,11 +783,13 @@ void Translator::translate(const IR::ParserState *parserState){
     }
     if(parserState->selectExpression!=nullptr){
         if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
-            state.addStatement(getIndent()+"call "+translate(pathExpression)+"();\n");
+            cstring nextState = translate(pathExpression);
+            state.addStatement(getIndent()+"call "+nextState+"();\n");
+            state.addSucc(nextState);
+            addPred(nextState, stateName);
         }
         else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
             state.addStatement(translate(parserState->selectExpression));
-            std::cout << "here" << std::endl;
         }
     }
     // TODO: add succ
@@ -636,6 +800,7 @@ void Translator::translate(const IR::ParserState *parserState){
 void Translator::translate(const IR::P4Control *p4Control){
     cstring controlName = p4Control->name.toString();
     BoogieProcedure control = BoogieProcedure(controlName);
+    currentProcedure = &control;
     control.addDeclaration("\n// Control "+controlName+"\n");
     control.addDeclaration("procedure {:inline 1} "+controlName+"()\n");
     incIndent();
@@ -656,9 +821,9 @@ void Translator::translate(const IR::Method *method){
 void Translator::translate(const IR::P4Action *p4Action){
     cstring actionName = p4Action->name.toString();
     BoogieProcedure action = BoogieProcedure(actionName);
+    currentProcedure = &action;
     action.addDeclaration("\n// Action "+actionName+"\n");
     action.addDeclaration("procedure {:inline 1} "+actionName+"(");
-    // TODO: add parameters
     int cnt = p4Action->parameters->parameters.size();
     for(auto parameter:p4Action->parameters->parameters){
         action.addDeclaration(translate(parameter));
@@ -674,10 +839,91 @@ void Translator::translate(const IR::P4Action *p4Action){
 }
 
 void Translator::translate(const IR::P4Table *p4Table){
-    cstring tableName = p4Table->name.toString();
+    cstring name = p4Table->name.toString();
+    cstring tableName = name+".apply";
     BoogieProcedure table = BoogieProcedure(tableName);
+    table.addDeclaration("\n// Table "+name+"\n");
+    table.addDeclaration("procedure {:inline 1} "+tableName+"()\n");
+    addDeclaration("\n// Table "+name+" Actionlist Declaration\n");
+    addDeclaration("type "+name+".action;\n");
+    incIndent();
+    for(auto property:p4Table->properties->properties){
+        if (auto actionList = property->value->to<IR::ActionList>()) {
+            // add local variables
+            for(auto actionElement:actionList->actionList){
+                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                    cstring actionName = translate(actionCallExpr->method);
+                    const IR::P4Action* action = actions[actionName];
+                    for(auto parameter:action->parameters->parameters){
+                        table.addStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                    }
+                }
+            }
+            // TODO: add keys
+            // add action call statements
+            int cnt = actionList->actionList.size();
+            for(auto actionElement:actionList->actionList){
+                if(cnt == actionList->actionList.size())
+                    table.addStatement(getIndent()+"if(");
+                else
+                    table.addStatement(getIndent()+"else if(");
+                cnt--;
+                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                    cstring actionName = translate(actionCallExpr->method);
+                    table.addStatement(name+".action_run == "+name+".action."+actionName+"){\n");
+                    incIndent();
+                    const IR::P4Action* action = actions[actionName];
+                    table.addStatement(getIndent()+"call "+actionName+"(");
+                    table.addSucc(actionName);
+                    addPred(actionName, tableName);
+                    int cnt2 = action->parameters->parameters.size();
+                    for(auto parameter:action->parameters->parameters){
+                        cnt2--;
+                        table.addStatement(actionName+"."+parameter->name.toString());
+                        if(cnt2 != 0)
+                            table.addStatement(", ");
+                    }
+                    table.addStatement(");\n");
+                    decIndent();
+                }
+                table.addStatement(getIndent()+"}\n");
+            }
+            // add action declaration
+            translate(actionList, name+".action");
+        }
+    }
+    addDeclaration("var "+name+".action_run : "+name+".action;\n");
+    addGlobalVariables(name+".action_run");
+    decIndent();
+    addProcedure(table);
 }
 
 cstring Translator::translate(const IR::Parameter *parameter){
     return parameter->name.toString()+":"+translate(parameter->type);
+}
+
+void Translator::translate(const IR::ActionList *actionList, cstring arg){
+    cstring limitName = arg+"_run.limit";
+    BoogieProcedure limit = BoogieProcedure(limitName);
+    limit.addModifiedGlobalVariables(arg+"_run");
+    limit.addDeclaration("\nprocedure "+limitName+"();\n");
+    limit.addDeclaration("    ensures(");
+    int cnt = actionList->actionList.size();
+    for(auto actionElement:actionList->actionList){
+        cnt--;
+        if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+            cstring actionName = translate(actionCallExpr->method);
+            addDeclaration("const unique "+arg+"."+actionName+" : "+arg+";\n");
+            limit.addDeclaration(arg+"_run=="+arg+"."+actionName);
+        }
+        if(cnt > 0){
+            limit.addDeclaration(" || ");
+        }
+    }
+    limit.addDeclaration(");\n");
+    addProcedure(limit);
+    mainProcedure.addFrontStatement("    call "+limitName+"();\n");
+    mainProcedure.addSucc(limitName);
+    addPred(limitName, mainProcedure.getName());
+    //TODO: add children
 }
