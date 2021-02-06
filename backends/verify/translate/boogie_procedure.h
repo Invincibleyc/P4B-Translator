@@ -14,7 +14,9 @@ class BoogieProcedure{
 	bool hasImplementation = false;
 public:
 	std::set<cstring> modifies;
+	std::map<cstring, int> parameters;  // <name, size>
 	std::vector<cstring> succ;
+	bool isParserState = false;
 	BoogieProcedure();
 	BoogieProcedure(const cstring& name);
 	BoogieProcedure(cstring& name, cstring& decl, cstring& body);

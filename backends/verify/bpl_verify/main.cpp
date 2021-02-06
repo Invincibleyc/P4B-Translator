@@ -30,8 +30,11 @@ limitations under the License.
 #include "frontends/common/applyOptionsPragmas.h"
 #include "frontends/common/parseInput.h"
 #include "frontends/p4/frontend.h"
+#include <time.h>
 
 int main(int argc, char *const argv[]) {
+    clock_t program_start = clock(), program_end;
+    double program_cpu_time_used;
     setup_gc_logging();
     setup_signals();
 
@@ -77,6 +80,11 @@ int main(int argc, char *const argv[]) {
         } else {
             error(ErrorType::ERR_IO, "Can't open %s", options.file); }
     }
+
+    clock_t backend_start, backend_end;
+    double backend_cpu_time_used;
+    backend_start = clock();
+
     std::ostream* out = openFile(options.outputBplFile, false);
     if (out != nullptr) {
         Translator translator(*out);
@@ -84,5 +92,11 @@ int main(int argc, char *const argv[]) {
         translator.writeToFile();
         out->flush();
     }
+    backend_end = clock();
+    backend_cpu_time_used = ((double) (backend_end - backend_start)) / CLOCKS_PER_SEC;
+    program_cpu_time_used = ((double) (backend_end - program_start)) / CLOCKS_PER_SEC;
+    // std::cout << "backend done in " << DURATION(front)/1000.0 << " s\n";
+    std::cout << "backend cpu time " << backend_cpu_time_used << " s\n";
+    std::cout << "program cpu time " << program_cpu_time_used << " s\n";
     return 0;
 }

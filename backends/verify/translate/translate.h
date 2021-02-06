@@ -20,10 +20,13 @@ private:
 	std::map<cstring, const IR::Type_Header*> headers;
 	std::map<cstring, const IR::Type_Struct*> structs;
 	std::map<cstring, const IR::P4Action*> actions;
+	std::set<cstring> stacks;
+	std::set<cstring> functions;
 	std::map<cstring, std::vector<cstring>> pred;
 	std::set<cstring> globalVariables;
 	BoogieProcedure* currentProcedure=nullptr;
 	cstring deparser=nullptr;
+
 public:
 	Translator(std::ostream &out);
 	void writeToFile();
@@ -33,6 +36,7 @@ public:
 	void addDeclaration(cstring decl);
 	void addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType);
 	void analyzeProgram(const IR::P4Program *program);
+	cstring translate(IR::ID id);
 	void incIndent();
 	void decIndent();
 	cstring getIndent();
@@ -48,6 +52,8 @@ public:
 
 	void translate(const IR::Type_Declaration *typeDeclaration);
 	cstring translate(const IR::Declaration *declaration);
+
+	cstring translate(const IR::Declaration_Variable *declVar);
 
 	// Statement
 	cstring translate(const IR::Statement *stat);
@@ -66,10 +72,15 @@ public:
 	cstring translate(const IR::Member *member);
 	cstring translate(const IR::PathExpression *pathExpression);
 	cstring translate(const IR::Path *path);
-	cstring translate(const IR::SelectExpression *selectExpression);
+	cstring translate(const IR::SelectExpression *selectExpression, cstring localDeclArg="");
 	cstring translate(const IR::Argument *argument);
 	cstring translate(const IR::Constant *constant);
 	cstring translate(const IR::ConstructorCallExpression *constructorCallExpression);
+	cstring translate(const IR::Cast *cast);
+	cstring translate(const IR::Slice *slice);
+	cstring translate(const IR::LNot *lnot);
+	cstring translate(const IR::Mask *mask);
+	cstring translate(const IR::ArrayIndex *arrayIndex);
 
 	// Type
 	cstring translate(const IR::Type *type);
@@ -77,9 +88,11 @@ public:
 	cstring translate(const IR::Type_Boolean *typeBoolean);
 	cstring translate(const IR::Type_Specialized *typeSpecialized);
 	cstring translate(const IR::Type_Name *typeName);
+	cstring translate(const IR::Type_Stack *typeStack, cstring arg);
 
 	// Operation (also Expression)
 	cstring translate(const IR::Operation_Binary *opBinary);
+	cstring translate(const IR::Operation_Unary *opUnary);
 
 	void translate(const IR::P4Program *program);
 	void translate(const IR::Type_Error *typeError);
@@ -101,13 +114,14 @@ public:
 	void translate(const IR::Type_Package *typePackage);
 
 	void translate(const IR::P4Parser *p4Parser);
-	void translate(const IR::ParserState *parserState);
+	void translate(const IR::ParserState *parserState, cstring localDecl="", cstring localDeclArg="");
 	void translate(const IR::P4Control *p4Control);
 	void translate(const IR::Method *method);
 	void translate(const IR::P4Action *p4Action);
 	void translate(const IR::P4Table *p4Table);
-	cstring translate(const IR::Parameter *parameter);
+	cstring translate(const IR::Parameter *parameter, cstring arg="others");
 	void translate(const IR::ActionList *actionList, cstring arg);
+
 };
 
 #endif

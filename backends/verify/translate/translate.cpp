@@ -47,7 +47,7 @@ Translator::Translator(std::ostream &out) : out(out){
 
     headers = std::map<cstring, const IR::Type_Header*>();
     structs = std::map<cstring, const IR::Type_Struct*>();
-    globalVariables = std::set<cstring>();
+    // globalVariables = std::set<cstring>();
 
     addNecessaryProcedures();
 }
@@ -101,17 +101,6 @@ void Translator::addNecessaryProcedures(){
     setInvalid.addModifiedGlobalVariables("isValid");
     addProcedure(setInvalid);
 
-    BoogieProcedure accept = BoogieProcedure("accept");
-    accept.addDeclaration("procedure {:inline 1} accept()\n");
-    accept.setImplemented();
-    addProcedure(accept);
-
-    BoogieProcedure reject = BoogieProcedure("reject");
-    reject.addDeclaration("procedure reject();\n");
-    reject.addDeclaration("    ensures drop==true;\n");
-    reject.addModifiedGlobalVariables("drop");
-    addProcedure(reject);
-
     BoogieProcedure mark_to_drop = BoogieProcedure("mark_to_drop");
     mark_to_drop.addDeclaration("procedure mark_to_drop();\n");
     mark_to_drop.addDeclaration("    ensures drop==true;\n");
@@ -129,10 +118,20 @@ void Translator::addDeclaration(cstring decl){
 }
 
 void Translator::addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType){
-    cstring functionName = op+"."+typeName;
-    cstring res = "\nfunction {:bvbuiltin \""+opbuiltin+"\"} "+functionName;
-    res += "(left:"+typeName+", right:"+typeName+") returns("+returnType+");\n";
-    addDeclaration(res);
+    cstring functionName = op+".";
+    if(returnType!="bool")
+        functionName += returnType;
+    else
+        functionName += typeName;
+    if(functions.find(functionName)==functions.end()){
+        functions.insert(functionName);
+        cstring res = "\nfunction {:bvbuiltin \""+opbuiltin+"\"} "+functionName;
+        if(returnType!="bool")
+            res += "(left:"+returnType+", right:"+returnType+") returns("+returnType+");\n";
+        else
+            res += "(left:"+typeName+", right:"+typeName+") returns("+returnType+");\n";
+        addDeclaration(res);
+    }
 }
 
 void Translator::analyzeProgram(const IR::P4Program *program){
@@ -146,11 +145,15 @@ void Translator::analyzeProgram(const IR::P4Program *program){
         else if (auto p4Control = obj->to<IR::P4Control>()){
             for(auto controlLocal:p4Control->controlLocals){
                 if (auto p4Action = controlLocal->to<IR::P4Action>()){
-                    actions[p4Action->name.toString()] = p4Action;
+                    actions[translate(p4Action->name)] = p4Action;
                 }
             }
         }
     }
+}
+
+cstring Translator::translate(IR::ID id){
+    return id.name;
 }
 
 void Translator::incIndent(){ indent++; }
@@ -185,6 +188,13 @@ void Translator::writeToFile(){
     // queue.push(&mainProcedure);
     for (std::map<cstring, BoogieProcedure>::iterator iter=procedures.begin();
         iter!=procedures.end(); iter++){
+        for (std::set<cstring>::iterator iter2=iter->second.modifies.begin();
+            iter2!=iter->second.modifies.end();){
+            if(!isGlobalVariable(*iter2))
+                iter->second.modifies.erase(iter2++);
+            else
+                ++iter2;
+        }
         queue.push(&iter->second);
     }
     while(!queue.empty()){
@@ -226,7 +236,7 @@ void Translator::writeToFile(){
             //     std::cout << "  " << succ << std::endl;
             // }
             // std::cout << std::endl;
-            out << "\n";
+            // out << "\n";
             out << iter->second.toString();
         }
     }
@@ -310,11 +320,51 @@ cstring Translator::translate(const IR::ReturnStatement *returnStatement){ retur
 cstring Translator::translate(const IR::EmptyStatement *emptyStatement){ return ""; }
 
 cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement){
+    if(auto slice = assignmentStatement->left->to<IR::Slice>()){
+        cstring res = "";
+        cstring left = translate(slice->e0);
+        updateModifiedVariables(left);
+        res += getIndent()+left;
+        if(auto typeBits = slice->e0->type->to<IR::Type_Bits>()){
+            int size, l, r;
+            size = typeBits->size;
+            std::stringstream ss;
+            ss << translate(slice->e1);
+            ss >> l;
+            std::stringstream ss2;
+            ss2 << translate(slice->e2);
+            ss2 >> r;
+            res += " := ";
+            l++;
+            if(l < size)
+                res += left+"["+std::to_string(size)+":"+std::to_string(l)+"]++";
+            res += translate(assignmentStatement->right);
+            if(r > 0)
+                res += "++"+left+"["+std::to_string(r)+":0]";
+            res += ";\n";
+            return res;
+        }
+        return "";
+    }
     cstring res = "";
     cstring left = translate(assignmentStatement->left);
-    updateModifiedVariables(left);
+    cstring right = translate(assignmentStatement->right);
+    if(right=="havoc"){
+        updateModifiedVariables(left);
+        return getIndent()+"havoc "+left+";\n";
+    }
+    // if(left.find("[") != nullptr){
+    //     std::string s = left.c_str();
+    //     std::string::size_type idx = s.find("[");
+    //     if(idx != std::string::npos){
+    //         int i = idx;
+    //         updateModifiedVariables(left.substr(0, idx));
+    //     }
+    // }
+    // else
+        updateModifiedVariables(left);
     res = getIndent()+left+" := "
-        +translate(assignmentStatement->right)+";\n";
+        +right+";\n";
     if(left=="standard_metadata.egress_spec"){
         res += getIndent()+"forward := true;\n";
         currentProcedure->addModifiedGlobalVariables("forward");
@@ -358,6 +408,36 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     else if(expr.find("update_checksum") != nullptr){
         return getIndent()+"// update_checksum\n";
     }
+    else if(expr.find("clone3(") != nullptr){
+        return getIndent()+"// clone\n";
+    }
+    else if(expr.find("hash(") != nullptr){
+        return getIndent()+"// hash\n";
+    }
+    else if(expr.find("digest(") != nullptr){
+        return getIndent()+"// digest\n";
+    }
+    else if(expr.find(".count(") != nullptr){
+        return getIndent()+"// count\n";
+    }
+    else if(expr.find(".write(") != nullptr){
+        return getIndent()+"// write\n";
+    }
+    else if(expr.find(".read(") != nullptr){
+        return getIndent()+"// read\n";
+    }
+    else if(expr.find("random(") != nullptr){
+        return getIndent()+"// random\n";
+    }
+    else if(expr.find(".push_front(") != nullptr){
+        return getIndent()+"// push_front\n";
+    }
+    else if(expr.find(".pop_front(") != nullptr){
+        return getIndent()+"// pop_front\n";
+    }
+    else if(expr.find(".execute_meter(") != nullptr){
+        return getIndent()+"// execute_meter\n";
+    }
     return getIndent()+"call "+expr+";\n";
 }
 
@@ -391,12 +471,26 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto constructorCallExpression = expression->to<IR::ConstructorCallExpression>()){
         return translate(constructorCallExpression);
     }
+    else if (auto slice = expression->to<IR::Slice>()){
+        return translate(slice);
+    }
+    else if (auto opBinary = expression->to<IR::Operation_Unary>()){
+        return translate(opBinary);
+    }
     return "";
 }
 
 cstring Translator::translate(const IR::MethodCallExpression *methodCallExpression){
     cstring res = "";
     cstring method = translate(methodCallExpression->method);
+
+    if(method=="lookahead")
+        return "havoc";
+
+    if(method=="mark_to_drop"){
+        updateModifiedVariables("drop");
+        return "mark_to_drop()";
+    }
 
     std::string s = method.c_str();
     std::string::size_type idx = s.find("isValid");
@@ -410,6 +504,28 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     //     std::string s = method.c_str();
     //     std::cout << "find... " << s.find("isValid") << std::endl;
     // }
+    if(method.find("setValid(") != nullptr || method.find("setInvalid(")){
+        updateModifiedVariables("isValid");
+        return method;
+    }
+
+    if(methodCallExpression->arguments->size()>0){
+        cstring argument = translate((*methodCallExpression->arguments)[0]);
+        std::string s = argument.c_str();
+        std::string::size_type idx = s.find("next");
+        if(idx != std::string::npos){
+            int i = idx;
+            cstring succ = "packet_in.extract.headers.";
+            succ += s.substr(4, idx-5)+".next";
+            res = succ+"("+s.substr(0, idx-1)+")";
+            currentProcedure->addSucc(succ);
+            addPred(succ, currentProcedure->getName());
+            // std::cout << s.substr(0, idx-1) << std::endl;
+            // std::cout << "find... " << i << std::endl;
+            // return "isValid["+s.substr(0, idx-1)+"]";
+            return res;
+        }
+    }
 
     currentProcedure->addSucc(method);
     addPred(method, currentProcedure->getName());
@@ -423,7 +539,6 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             res += ", ";
     }
     res += ")";
-    // TODO: succ
     return res;
 }
 
@@ -431,6 +546,15 @@ cstring Translator::translate(const IR::Member *member){
     // std::cout << "member: " << member->member.toString() << std::endl;
     if(member->member.toString()=="extract")
         return "packet_in.extract";
+    if(member->member.toString()=="lookahead")
+        return "lookahead";
+    if(member->member.toString()=="setValid")
+        return "setValid("+translate(member->expr)+")";
+    if(member->member.toString()=="setInvalid")
+        return "setInvalid("+translate(member->expr)+")";
+    if(auto arrayIndex = member->expr->to<IR::ArrayIndex>()){
+        return translate(arrayIndex->left)+"."+translate(arrayIndex->right)+"."+member->member.toString();
+    }
     return translate(member->expr)+"."+member->member.toString();
 }
 
@@ -439,7 +563,7 @@ cstring Translator::translate(const IR::PathExpression *pathExpression){
 }
 
 cstring Translator::translate(const IR::Path *path){
-    return path->name.toString();
+    return translate(path->name);
 }
 
 cstring Translator::translate(const IR::Declaration *decl){
@@ -449,18 +573,31 @@ cstring Translator::translate(const IR::Declaration *decl){
     else if (auto p4Table = decl->to<IR::P4Table>()){
         translate(p4Table);
     }
+    else if (auto declVar = decl->to<IR::Declaration_Variable>()){
+        return translate(declVar);
+    }
     return "";
 }
 
-cstring Translator::translate(const IR::SelectExpression *selectExpression){
+cstring Translator::translate(const IR::Declaration_Variable *declVar){
     cstring res = "";
+    res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+    return res;
+}
+
+cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring localDeclArg){
+    cstring res = "";
+    bool flag = false;
     int cnt = selectExpression->selectCases.size();
     for(auto selectCase:selectExpression->selectCases){
         if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+            if(flag)
+                continue;
+            flag = true;
             cstring nextState = translate(selectCase->state);
             res += getIndent()+"else{\n";
             incIndent();
-            res += getIndent()+"call "+nextState+"();\n";
+            res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
             currentProcedure->addSucc(nextState);
             addPred(nextState, currentProcedure->getName());
             decIndent();
@@ -476,21 +613,36 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression){
             int sz = selectExpression->select->components.size();
             int cnt2 = 0;
             for(auto expr:selectExpression->select->components){
-                res += translate(expr);
-                res += " == ";
                 if(auto constant = selectCase->keyset->to<IR::Constant>()){
+                    res += translate(expr);
+                    res += " == ";
                     std::stringstream ss;
                     ss << constant->value;
                     res += ss.str()+translate(constant->type);
                 }
+                else if(auto mask = selectCase->keyset->to<IR::Mask>()){
+                    cstring functionName = translate(mask);
+                    res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+                    res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                }
+                else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
+                    if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
+                        cstring functionName = translate(mask);
+                        res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+                        res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                    }
+                    else{
+                        res += translate(expr)+" == ";
+                        res += translate(listExpression->components.at(cnt2));
+                    }
+                }
                 cnt2++;
-                // TODO: Mask
                 if(cnt2 < sz)
                     res += " && ";
             }
             res += "){\n";
             incIndent();
-            res += getIndent()+"call "+nextState+"();\n";
+            res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
             currentProcedure->addSucc(nextState);
             addPred(nextState, currentProcedure->getName());
             decIndent();
@@ -513,6 +665,70 @@ cstring Translator::translate(const IR::Constant *constant){
 
 cstring Translator::translate(const IR::ConstructorCallExpression *constructorCallExpression){
     return translate(constructorCallExpression->constructedType);
+}
+
+cstring Translator::translate(const IR::Cast *cast){
+    if (auto destType = cast->destType->to<IR::Type_Bits>()){
+        int dstSize = destType->size, srcSize = -1;
+        cstring expr = translate(cast->expr);
+        if(auto srcType = cast->expr->type->to<IR::Type_Bits>()){
+            srcSize = srcType->size;
+        }
+        else if(auto srcType = cast->expr->type->to<IR::Type_Unknown>()){
+            if(currentProcedure->parameters.find(expr)!=
+                currentProcedure->parameters.end()){
+                srcSize = currentProcedure->parameters[expr];
+            }
+        }
+        if(srcSize!=-1){
+            if(dstSize < srcSize) {
+                return expr+"["+std::to_string(dstSize)+":0]";
+            }
+            else if(dstSize > srcSize){
+                return "0bv"+std::to_string(dstSize-srcSize)+"++"+expr;
+            }
+            else{
+                return expr;
+            }
+        }
+    }
+    return "";
+}
+
+cstring Translator::translate(const IR::Slice *slice){
+    cstring res = "";
+    res += translate(slice->e0);
+    int start;
+    std::stringstream ss;
+    ss << translate(slice->e1);
+    ss >> start;
+    res += "["+std::to_string(start+1);
+    res += ":"+translate(slice->e2)+"]";
+    return res;
+}
+
+cstring Translator::translate(const IR::LNot *lnot){
+    return "!("+translate(lnot->expr)+")";
+}
+
+cstring Translator::translate(const IR::Mask *mask){
+    cstring res = "";
+    if (auto typeSet = mask->type->to<IR::Type_Set>()){
+        if (auto typeBits = typeSet->elementType->to<IR::Type_Bits>()){
+            cstring returnType = translate(typeBits);
+            cstring functionName = "band."+returnType;
+            addFunction("band", "bvand", returnType, returnType);
+            return functionName;
+        }
+    }
+    return res;
+}
+
+cstring Translator::translate(const IR::ArrayIndex *arrayIndex){
+    cstring res = "";
+    res += translate(arrayIndex->left);
+    res += "["+translate(arrayIndex->right)+"]";
+    return res;
 }
 
 // Type
@@ -550,70 +766,159 @@ cstring Translator::translate(const IR::Type_Name *typeName){
     return translate(typeName->path);
 }
 
+cstring Translator::translate(const IR::Type_Stack *typeStack, cstring arg){
+    const IR::Type_Header* typeHeader = headers[translate(typeStack->elementType)];
+    if(typeHeader!=nullptr && stacks.find(arg)==stacks.end()){
+        stacks.insert(arg);
+        translate(typeHeader, arg+".last");
+        if (auto constant = typeStack->size->to<IR::Constant>()) {
+            int size = 0;
+            std::stringstream ss;
+            ss << constant->value;
+            ss >> size;
+            for(int i = 0; i < size; i++){
+                translate(typeHeader, arg+"."+std::to_string(i));
+            }
+        }
+        cstring procName = "packet_in.extract.headers.";
+        procName += arg.substr(4)+".next";
+        if(procedures.find(procName)==procedures.end()){
+            BoogieProcedure extractStack = BoogieProcedure(procName);
+            extractStack.addDeclaration("procedure {:inline 1} "+procName+"(stack:HeaderStack)\n");
+            extractStack.addModifiedGlobalVariables("stack.index");
+            extractStack.addModifiedGlobalVariables("isValid");
+            incIndent();
+            extractStack.addStatement(getIndent()+"isValid[stack[stack.index[stack]]] := true;\n");
+            extractStack.addStatement(getIndent()+"stack.index[stack] := stack.index[stack]+1;\n");
+            decIndent();
+            addProcedure(extractStack);
+        }
+    }
+    return "";
+}
+
 cstring Translator::translate(const IR::Operation_Binary *opBinary){
     cstring typeName = translate(opBinary->left->type);
     cstring returnType = translate(opBinary->type);
     if (auto shl = opBinary->to<IR::Shl>()) {
         addFunction("shl", "bvshl", typeName, returnType);
-        return "shl."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "shl."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto shr = opBinary->to<IR::Shr>()) {
         addFunction("shr", "bvlshr", typeName, returnType);
-        return "shr."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "shr."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto mul = opBinary->to<IR::Mul>()) {
         addFunction("mul", "bvmul", typeName, returnType);
-        return "mul."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "mul."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto add = opBinary->to<IR::Add>()) {
         addFunction("add", "bvadd", typeName, returnType);
-        return "add."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "add."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto addSat = opBinary->to<IR::AddSat>()) {
         addFunction("add", "bvadd", typeName, returnType);
-        return "add."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "add."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto sub = opBinary->to<IR::Sub>()) {
         addFunction("sub", "bvsub", typeName, returnType);
-        return "sub."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "sub."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto subSat = opBinary->to<IR::SubSat>()) {
         addFunction("sub", "bvsub", typeName, returnType);
-        return "sub."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "sub."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto bAnd = opBinary->to<IR::BAnd>()) {
         addFunction("band", "bvand", typeName, returnType);
-        return "band."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "band."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto bOr = opBinary->to<IR::BOr>()) {
         addFunction("bor", "bvor", typeName, returnType);
-        return "bor."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bor."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto bXor = opBinary->to<IR::BXor>()) {
         addFunction("bxor", "bvxor", typeName, returnType);
-        return "bxor."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bxor."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto geq = opBinary->to<IR::Geq>()) {
         addFunction("bsge", "bvsge", typeName, returnType);
-        return "bsge."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bsge."+typeName+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto leq = opBinary->to<IR::Leq>()) {
         addFunction("bsle", "bvsle", typeName, returnType);
-        return "bsle."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bsle."+typeName+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto grt = opBinary->to<IR::Grt>()) {
         addFunction("bugt", "bvugt", typeName, returnType);
-        return "bugt."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bugt."+typeName+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto lss = opBinary->to<IR::Lss>()) {
         addFunction("bult", "bvult", typeName, returnType);
-        return "bult."+typeName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        cstring right = translate(opBinary->right);
+        if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            right += returnType;
+        return "bult."+typeName+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto arrayIndex = opBinary->to<IR::ArrayIndex>()) {
-        return "";
+        return translate(arrayIndex);
+    }
+    else if (auto mask = opBinary->to<IR::Mask>()) {
+        return translate(mask);
     }
     else
         return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
+}
+
+cstring Translator::translate(const IR::Operation_Unary *opUnary){
+    if (auto cast = opUnary->to<IR::Cast>()){
+        return translate(cast);
+    }
+    else if (auto member = opUnary->to<IR::Member>()){
+        return translate(member);
+    }
+    else if (auto lnot = opUnary->to<IR::LNot>()){
+        return translate(lnot);
+    }
+    return "";
 }
 
 void Translator::translate(const IR::P4Program *program){
@@ -642,8 +947,6 @@ void Translator::translate(const IR::Type_Enum *typeEnum){
 void Translator::translate(const IR::Declaration_Instance *instance){
     cstring typeName = translate(instance->type);
     cstring name = instance->name.toString();
-    std::cout << typeName << std::endl;
-    std::cout << name << std::endl;
     if(typeName=="V1Switch"){
         BoogieProcedure main = BoogieProcedure(name);
         main.addDeclaration("procedure {:inline 1} "+name+"()\n");
@@ -722,7 +1025,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         addGlobalVariables(arg+"."+field->name);
     }
     else if(field->type->node_type_name() == "Type_Stack"){
-
+        addDeclaration("const "+arg+"."+field->name+":HeaderStack;\n");
+        if (auto typeStack = field->type->to<IR::Type_Stack>()){
+            translate(typeStack, arg+"."+field->name);
+        }
     }
 }
 
@@ -740,6 +1046,7 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     for(const IR::StructField* field:typeHeader->fields){
         translate(field, arg);
     }
+
 }
 
 void Translator::translate(const IR::Type_Parser *typeParser){
@@ -759,24 +1066,62 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     BoogieProcedure parser = BoogieProcedure(parserName);
     parser.addDeclaration("\n// Parser "+parserName+"\n");
     parser.addDeclaration("procedure {:inline 1} "+parserName+"()\n");
+    incIndent();
+    cstring localDecl = "";
+    cstring localDeclArg = "";
+    int cnt = p4Parser->parserLocals.size();
+    for(auto parserLocal:p4Parser->parserLocals){
+        cnt--;
+        parser.addStatement(translate(parserLocal));
+        if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
+            cstring name = translate(declVar->name);
+            cstring type = translate(declVar->type);
+            addDeclaration("var "+name+":"+type+";\n");
+            addGlobalVariables(name);
+            localDecl += name+":"+type;
+            localDeclArg += translate(declVar->name);
+        }
+        if(cnt > 0){
+            localDecl += ", ";
+            localDeclArg += ", ";
+        }
+    }
+    // parser.addStatement("    call start("+localDeclArg+");\n");
     parser.addStatement("    call start();\n");
+    decIndent();
     parser.addSucc("start");
     addPred("start", parserName);
     addProcedure(parser);
     for(auto state:p4Parser->states){
         translate(state);
+        // translate(state, localDecl, localDeclArg);
     }
+
+    // add accept & reject
+    BoogieProcedure accept = BoogieProcedure("accept");
+    // accept.addDeclaration("procedure {:inline 1} accept("+localDecl+")\n");
+    accept.addDeclaration("procedure {:inline 1} accept()\n");
+    accept.setImplemented();
+    addProcedure(accept);
+
+    BoogieProcedure reject = BoogieProcedure("reject");
+    // reject.addDeclaration("procedure reject("+localDecl+");\n");
+    reject.addDeclaration("procedure reject();\n");
+    reject.addDeclaration("    ensures drop==true;\n");
+    reject.addModifiedGlobalVariables("drop");
+    addProcedure(reject);
     // TODO: parser local variables
 }
 
-void Translator::translate(const IR::ParserState *parserState){
+void Translator::translate(const IR::ParserState *parserState, cstring localDecl, cstring localDeclArg){
     cstring stateName = parserState->name.toString();
     if(stateName=="accept" || stateName=="reject")
         return;
     BoogieProcedure state = BoogieProcedure(stateName);
+    state.isParserState = true;
     currentProcedure = &state;
     state.addDeclaration("\n//Parser State "+stateName+"\n");
-    state.addDeclaration("procedure {:inline 1} "+stateName+"()\n");
+    state.addDeclaration("procedure {:inline 1} "+stateName+"("+localDecl+")\n");
     incIndent();
     for(auto statOrDecl:parserState->components){
         state.addStatement(translate(statOrDecl));
@@ -784,12 +1129,12 @@ void Translator::translate(const IR::ParserState *parserState){
     if(parserState->selectExpression!=nullptr){
         if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
             cstring nextState = translate(pathExpression);
-            state.addStatement(getIndent()+"call "+nextState+"();\n");
+            state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
             state.addSucc(nextState);
             addPred(nextState, stateName);
         }
         else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
-            state.addStatement(translate(parserState->selectExpression));
+            state.addStatement(translate(selectExpression, localDeclArg));
         }
     }
     // TODO: add succ
@@ -800,6 +1145,7 @@ void Translator::translate(const IR::ParserState *parserState){
 void Translator::translate(const IR::P4Control *p4Control){
     cstring controlName = p4Control->name.toString();
     BoogieProcedure control = BoogieProcedure(controlName);
+    control.setImplemented();
     currentProcedure = &control;
     control.addDeclaration("\n// Control "+controlName+"\n");
     control.addDeclaration("procedure {:inline 1} "+controlName+"()\n");
@@ -819,14 +1165,14 @@ void Translator::translate(const IR::Method *method){
 }
 
 void Translator::translate(const IR::P4Action *p4Action){
-    cstring actionName = p4Action->name.toString();
+    cstring actionName = translate(p4Action->name);
     BoogieProcedure action = BoogieProcedure(actionName);
     currentProcedure = &action;
     action.addDeclaration("\n// Action "+actionName+"\n");
     action.addDeclaration("procedure {:inline 1} "+actionName+"(");
     int cnt = p4Action->parameters->parameters.size();
     for(auto parameter:p4Action->parameters->parameters){
-        action.addDeclaration(translate(parameter));
+        action.addDeclaration(translate(parameter, "action"));
         cnt--;
         if(cnt != 0)
             action.addDeclaration(", ");
@@ -839,7 +1185,7 @@ void Translator::translate(const IR::P4Action *p4Action){
 }
 
 void Translator::translate(const IR::P4Table *p4Table){
-    cstring name = p4Table->name.toString();
+    cstring name = translate(p4Table->name);
     cstring tableName = name+".apply";
     BoogieProcedure table = BoogieProcedure(tableName);
     table.addDeclaration("\n// Table "+name+"\n");
@@ -879,7 +1225,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                     int cnt2 = action->parameters->parameters.size();
                     for(auto parameter:action->parameters->parameters){
                         cnt2--;
-                        table.addStatement(actionName+"."+parameter->name.toString());
+                        table.addStatement(actionName+"."+translate(parameter->name));
                         if(cnt2 != 0)
                             table.addStatement(", ");
                     }
@@ -898,8 +1244,15 @@ void Translator::translate(const IR::P4Table *p4Table){
     addProcedure(table);
 }
 
-cstring Translator::translate(const IR::Parameter *parameter){
-    return parameter->name.toString()+":"+translate(parameter->type);
+cstring Translator::translate(const IR::Parameter *parameter, cstring arg){
+    cstring name = translate(parameter->name);
+    cstring type = translate(parameter->type);
+    if(arg == "action"){
+        if(auto typeBits = parameter->type->to<IR::Type_Bits>()){
+            currentProcedure->parameters[name] = typeBits->size;
+        }
+    }
+    return name+":"+type;
 }
 
 void Translator::translate(const IR::ActionList *actionList, cstring arg){
