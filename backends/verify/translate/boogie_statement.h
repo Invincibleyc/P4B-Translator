@@ -4,6 +4,7 @@
 class BoogieStatement{
 private:
 	cstring cont;
+	bool hide;
 public:
 	BoogieStatement();
 	BoogieStatement(const cstring &cont);

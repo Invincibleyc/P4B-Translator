@@ -28,11 +28,13 @@ public:
 	void addStatement(BoogieStatement statement);
 	void addImplementation(const cstring& body);
 	void addDeclaration(const cstring& declaration);
+	void removeLastStatement();
 	void setImplemented();
 	void addSucc(cstring name);
 	int getModifiesSize();
 	cstring getName();
 	cstring toString();
+	cstring lastStatement();
 };
 
 #endif

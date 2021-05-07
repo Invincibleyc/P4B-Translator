@@ -37,11 +37,11 @@ add_library(verifybackend ${P4VERIFY_BACKEND_TRANSLATE_SRCS})
 add_dependencies(verifybackend genIR frontend)
 
 build_unified(P4VERIFY_BACKEND_VERIFY_SRCS)
-add_executable(p4c-verify ${P4VERIFY_BACKEND_VERIFY_SRCS})
-target_link_libraries (p4c-verify verifybackend ${P4C_LIBRARIES} ${P4C_LIB_DEPS})
+add_executable(p4c-translator ${P4VERIFY_BACKEND_VERIFY_SRCS})
+target_link_libraries (p4c-translator verifybackend ${P4C_LIBRARIES} ${P4C_LIB_DEPS})
 
 
-install(TARGETS p4c-verify RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
+install(TARGETS p4c-translator RUNTIME DESTINATION ${P4C_RUNTIME_OUTPUT_DIRECTORY})
 
 file(RELATIVE_PATH
   CURRENT_BINARY_DIR_PATH_REL
@@ -56,7 +56,7 @@ file(RELATIVE_PATH
 )
 
 add_custom_target(linkp4verify
-  COMMAND ${CMAKE_COMMAND} -E create_symlink ${CURRENT_BINARY_DIR_PATH_REL}/p4c-verify ${P4C_BINARY_DIR}/p4c-verify
+  COMMAND ${CMAKE_COMMAND} -E create_symlink ${CURRENT_BINARY_DIR_PATH_REL}/p4c-translator ${P4C_BINARY_DIR}/p4c-translator
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${P4C_BINARY_DIR_PATH_REL}/p4include ${CMAKE_CURRENT_BINARY_DIR}/p4include
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${P4C_BINARY_DIR_PATH_REL}/p4_14include ${CMAKE_CURRENT_BINARY_DIR}/p4_14include
   )

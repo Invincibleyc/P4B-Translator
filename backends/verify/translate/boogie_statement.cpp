@@ -1,7 +1,7 @@
 #include "boogie_statement.h"
 
 BoogieStatement::BoogieStatement(){
-
+	hide = false;
 }
 
 BoogieStatement::BoogieStatement(const cstring &cont){
@@ -9,6 +9,8 @@ BoogieStatement::BoogieStatement(const cstring &cont){
 }
 
 cstring BoogieStatement::toString(){
+	if(this->hide)
+		return "";
 	return cont;
 }
 

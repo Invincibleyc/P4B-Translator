@@ -20,6 +20,7 @@ private:
 	std::map<cstring, const IR::Type_Header*> headers;
 	std::map<cstring, const IR::Type_Struct*> structs;
 	std::map<cstring, const IR::P4Action*> actions;
+	std::map<cstring, const IR::P4Table*> tables;
 	std::set<cstring> stacks;
 	std::set<cstring> functions;
 	std::map<cstring, std::vector<cstring>> pred;
@@ -89,6 +90,7 @@ public:
 	cstring translate(const IR::Type_Specialized *typeSpecialized);
 	cstring translate(const IR::Type_Name *typeName);
 	cstring translate(const IR::Type_Stack *typeStack, cstring arg);
+	cstring translate(const IR::Type_Typedef *typeTypedef);
 
 	// Operation (also Expression)
 	cstring translate(const IR::Operation_Binary *opBinary);
@@ -119,6 +121,7 @@ public:
 	void translate(const IR::Method *method);
 	void translate(const IR::P4Action *p4Action);
 	void translate(const IR::P4Table *p4Table);
+	cstring translate(const IR::P4Table *p4Table, std::map<cstring, cstring> switchCases);
 	cstring translate(const IR::Parameter *parameter, cstring arg="others");
 	void translate(const IR::ActionList *actionList, cstring arg);
 

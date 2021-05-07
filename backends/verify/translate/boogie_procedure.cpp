@@ -32,6 +32,11 @@ void BoogieProcedure::addFrontStatement(BoogieStatement statement){
 
 void BoogieProcedure::addStatement(const cstring &cont){
 	this->hasImplementation = true;
+	if(lastStatement().find("assert(") != nullptr){
+		if(cont.find("call packet_in.extract") != nullptr){
+			statements.pop_back();
+		}
+	}
 	addStatement(BoogieStatement(cont));
 }
 
@@ -59,6 +64,16 @@ void BoogieProcedure::addSucc(cstring name){
 
 int BoogieProcedure::getModifiesSize(){
 	return modifies.size();
+}
+
+cstring BoogieProcedure::lastStatement(){
+	if(statements.empty())
+		return "";
+	return statements.back().toString();
+}
+
+void BoogieProcedure::removeLastStatement(){
+	statements.pop_back();
 }
 
 cstring BoogieProcedure::toString(){

@@ -4,6 +4,7 @@
 class P4VerifyOptions : public CompilerOptions {
  public:
     bool translateOnly = false;
+    bool addassertion = false;
     bool loadIRFromJson = false;
     cstring outputBplFile = nullptr;
     P4VerifyOptions() {
@@ -22,6 +23,11 @@ class P4VerifyOptions : public CompilerOptions {
                            return true;
                        },
                        "read previously dumped json instead of P4 source code");
+        registerOption("--assert", nullptr,
+                       [this](const char*) {
+                           addassertion = true;
+                           return true; },
+                       "add assertions for header accessing");
     }
 };
 
