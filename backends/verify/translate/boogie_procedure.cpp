@@ -30,6 +30,37 @@ void BoogieProcedure::addFrontStatement(BoogieStatement statement){
 	statements.insert(statements.begin(), statement);
 }
 
+int BoogieProcedure::findStatement(const cstring &cont){
+	int offset = 0;
+	// std::cout << cont << std::endl;
+	for(BoogieStatement statement:statements){
+		// std::cout << statement.toString() << std::endl;
+		if(statement.toString().find(cont) != nullptr)
+			return offset;
+		offset += 1;
+	}
+	return -1;
+}
+
+void BoogieProcedure::insertStatement(int offset, const cstring &cont){
+	insertStatement(offset, BoogieStatement(cont));
+}
+
+void BoogieProcedure::insertStatement(int offset, BoogieStatement statement){
+	if(offset != -1){
+		statements.insert(statements.begin()+offset, statement);
+	}
+}
+
+void BoogieProcedure::addVariableDeclaration(const cstring &cont){
+	addVariableDeclaration(BoogieStatement(cont));
+}
+
+void BoogieProcedure::addVariableDeclaration(BoogieStatement statement){
+	this->hasImplementation = true;
+	variableDeclaration.push_back(statement);
+}
+
 void BoogieProcedure::addStatement(const cstring &cont){
 	this->hasImplementation = true;
 	if(lastStatement().find("assert(") != nullptr){
@@ -37,12 +68,14 @@ void BoogieProcedure::addStatement(const cstring &cont){
 			statements.pop_back();
 		}
 	}
+	// std::cout << cont << std::endl;
 	addStatement(BoogieStatement(cont));
 }
 
 void BoogieProcedure::addStatement(BoogieStatement statement){
 	this->hasImplementation = true;
 	statements.push_back(statement);
+	// std::cout << statement.toString() << std::endl;
 }
 
 void BoogieProcedure::addImplementation(const cstring& body){
@@ -100,6 +133,11 @@ cstring BoogieProcedure::toString(){
 	}
 	if(hasImplementation){
 		res += "{\n";
+		if(!variableDeclaration.empty()){
+			for(BoogieStatement statement:variableDeclaration){
+				res += statement.toString();
+			}
+		}
 		if(!statements.empty()){
 			for(BoogieStatement statement:statements){
 				res += statement.toString();

@@ -9,8 +9,8 @@ BoogieStatement::BoogieStatement(const cstring &cont){
 }
 
 cstring BoogieStatement::toString(){
-	if(this->hide)
-		return "";
+	// if(this->hide)
+	// 	return "";
 	return cont;
 }
 

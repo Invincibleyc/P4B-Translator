@@ -86,12 +86,12 @@ void Translator::addNecessaryProcedures(){
     addProcedure(initStackIndex);
 
     BoogieProcedure extract = BoogieProcedure("packet_in.extract");
-    extract.addDeclaration("procedure {:inline 1} packet_in.extract(header:Ref)\n");
-    incIndent();
-    extract.addStatement(getIndent()+"isValid[header] := true;\n");
-    decIndent();
-    // extract.addDeclaration("    ensures (isValid[header] == true);\n")
-    // extract.addDeclaration("procedure packet_in.extract(header:Ref);\n");
+    // extract.addDeclaration("procedure {:inline 1} packet_in.extract(header:Ref)\n");
+    // incIndent();
+    // extract.addStatement(getIndent()+"isValid[header] := true;\n");
+    // decIndent();
+    extract.addDeclaration("procedure packet_in.extract(header:Ref);\n");
+    extract.addDeclaration("    ensures (isValid[header] == true);\n");
     extract.addModifiedGlobalVariables("isValid");
     addProcedure(extract);
 
@@ -300,7 +300,7 @@ void Translator::translate(const IR::Node *node){
         translate(typeTypedef);
     }
     else{
-        std::cout << node->node_type_name() << std::endl;
+        // std::cout << node->node_type_name() << std::endl;
         // translate(obj);
     }
 }
@@ -426,7 +426,8 @@ cstring Translator::translate(const IR::IfStatement *ifStatement){
 cstring Translator::translate(const IR::BlockStatement *blockStatement){
     cstring res = "";
     for(auto statOrDecl:blockStatement->components){
-        res += translate(statOrDecl);
+        currentProcedure->addStatement(translate(statOrDecl));
+        // res += translate(statOrDecl);
     }
     return res;
 }
@@ -457,7 +458,7 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     else if(expr.find(".read") != nullptr){
         return getIndent()+"// read\n";
     }
-    else if(expr.find("random(") != nullptr){
+    else if(expr.find("random") != nullptr){
         return getIndent()+"// random\n";
     }
     else if(expr.find(".push_front") != nullptr){
@@ -474,6 +475,9 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     }
     else if(expr.find("truncate") != nullptr){
         return getIndent()+"// truncate\n";
+    }
+    else if(expr.find("recirculate") != nullptr){
+        return getIndent()+"// recirculate\n";
     }
     cstring expr2 = translate(methodCallStatement->methodCall);
     currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
@@ -565,6 +569,12 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
             currentProcedure->removeLastStatement();
         }
+        if(addAssertions){
+            cstring assertStmt = "assert(false);";
+            while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
+                currentProcedure->removeLastStatement();
+            }
+        }
         return "isValid["+s.substr(0, idx-1)+"]";
         // std::cout << s.substr(0, idx-1) << std::endl;
         // std::cout << "find... " << i << std::endl;
@@ -624,6 +634,23 @@ cstring Translator::translate(const IR::Member *member){
         return "setValid("+translate(member->expr)+")";
     if(member->member.toString()=="setInvalid")
         return "setInvalid("+translate(member->expr)+")";
+    if(member->member.toString()=="hit"){
+        cstring expr = translate(member->expr);
+        std::string s = expr.c_str();
+        std::string::size_type idx = s.find(".apply()");
+        if(idx != std::string::npos){
+            int i = idx;
+            cstring tableName = s.substr(0, idx);
+            currentProcedure->addStatement(getIndent()+"call "+tableName+".apply();\n");
+            currentProcedure->addSucc(tableName+".apply");
+            // IR::P4Table* p4Table = tables[tableName];
+            return tableName+".hit";
+        }
+        // std::cout << translate(member->expr).find(".apply()") << std::endl;
+        // std::cout << translate(member->expr) << std::endl;
+        // std::cout << member << std::endl;
+    }
+
     if(auto arrayIndex = member->expr->to<IR::ArrayIndex>()){
         return translate(arrayIndex->left)+"."+translate(arrayIndex->right)+"."+member->member.toString();
     }
@@ -641,6 +668,15 @@ cstring Translator::translate(const IR::Member *member){
             // std::cout << stmt << std::endl;
             // std::cout << "last statement:" << std::endl;
             // std::cout << currentProcedure->lastStatement() << std::endl;
+        }
+        if(addAssertions){
+            cstring stmt = getIndent()+"assert(false);\n";
+            if(currentProcedure->lastStatement() == "" || 
+                (currentProcedure->lastStatement() != stmt 
+                    && stmt.find(currentProcedure->lastStatement()) == nullptr)){
+                currentProcedure->addStatement(stmt);
+                // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
+            }
         }
         return hdr;
     }
@@ -670,82 +706,188 @@ cstring Translator::translate(const IR::Declaration *decl){
 
 cstring Translator::translate(const IR::Declaration_Variable *declVar){
     cstring res = "";
-    res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+    if(declVar->initializer == nullptr){
+        if(currentProcedure != nullptr)
+            currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+        else
+            res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+    }
+    else{
+        if(currentProcedure != nullptr){
+            currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+            currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
+        }
+        else{
+            res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+        }
+        // currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+        // currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
+    }
     return res;
 }
 
+// cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring localDeclArg){
+//     cstring res = "";
+//     bool flag = false;
+//     int cnt = selectExpression->selectCases.size();
+//     for(auto selectCase:selectExpression->selectCases){
+//         if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+//             if(flag)
+//                 continue;
+//             flag = true;
+//             cstring nextState = translate(selectCase->state);
+//             if(selectExpression->selectCases.size()==1){
+//                 res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+//                 currentProcedure->addSucc(nextState);
+//                 addPred(nextState, currentProcedure->getName());
+//             }
+//             else{
+//                 res += getIndent()+"else{\n";
+//                 incIndent();
+//                 res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+//                 currentProcedure->addSucc(nextState);
+//                 addPred(nextState, currentProcedure->getName());
+//                 decIndent();
+//                 res += getIndent()+"}\n";
+//             }
+//         }
+//         else{
+//             cstring nextState = translate(selectCase->state);
+//             if(cnt == selectExpression->selectCases.size())
+//                 res += getIndent()+"if(";
+//             else
+//                 res += getIndent()+"else if(";
+
+//             int sz = selectExpression->select->components.size();
+//             int cnt2 = 0;
+//             for(auto expr:selectExpression->select->components){
+//                 if(auto constant = selectCase->keyset->to<IR::Constant>()){
+//                     res += translate(expr);
+//                     res += " == ";
+//                     std::stringstream ss;
+//                     ss << constant->value;
+//                     res += ss.str()+translate(constant->type);
+//                 }
+//                 else if(auto mask = selectCase->keyset->to<IR::Mask>()){
+//                     cstring functionName = translate(mask);
+//                     res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+//                     res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+//                 }
+//                 else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
+//                     if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
+//                         cstring functionName = translate(mask);
+//                         res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+//                         res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+//                     }
+//                     else{
+//                         res += translate(expr)+" == ";
+//                         res += translate(listExpression->components.at(cnt2));
+//                     }
+//                 }
+//                 cnt2++;
+//                 if(cnt2 < sz)
+//                     res += " && ";
+//             }
+//             res += "){\n";
+//             incIndent();
+//             res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+//             currentProcedure->addSucc(nextState);
+//             addPred(nextState, currentProcedure->getName());
+//             decIndent();
+//             res += getIndent()+"}\n";
+//         }
+//         cnt--;
+//     }
+//     return res;
+// }
+
 cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring localDeclArg){
     cstring res = "";
+    cstring gotoStmt = getIndent()+"goto ";
     bool flag = false;
+
+    cstring defaultLabel = "DEFAULT";
+    cstring defaultBlock = "";
+    cstring defaultCondition = "";
+
     int cnt = selectExpression->selectCases.size();
     for(auto selectCase:selectExpression->selectCases){
+        std::stringstream ss_cnt;
+        ss_cnt << cnt;
         if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
             if(flag)
                 continue;
             flag = true;
             cstring nextState = translate(selectCase->state);
-            if(selectExpression->selectCases.size()==1){
-                res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
-                currentProcedure->addSucc(nextState);
-                addPred(nextState, currentProcedure->getName());
-            }
-            else{
-                res += getIndent()+"else{\n";
-                incIndent();
-                res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
-                currentProcedure->addSucc(nextState);
-                addPred(nextState, currentProcedure->getName());
-                decIndent();
-                res += getIndent()+"}\n";
-            }
+
+            defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+            currentProcedure->addSucc(nextState);
+            addPred(nextState, currentProcedure->getName());
         }
         else{
             cstring nextState = translate(selectCase->state);
-            if(cnt == selectExpression->selectCases.size())
-                res += getIndent()+"if(";
-            else
-                res += getIndent()+"else if(";
+
+            // Goto label for next state
+            cstring gotoLabel = nextState+"_"+ss_cnt.str();
+            gotoStmt += gotoLabel+", ";
+
+            res += getIndent()+"\n"+gotoLabel+":\n";
+            res += getIndent()+"assume (";
+
+            cstring condition = "";
 
             int sz = selectExpression->select->components.size();
             int cnt2 = 0;
             for(auto expr:selectExpression->select->components){
                 if(auto constant = selectCase->keyset->to<IR::Constant>()){
-                    res += translate(expr);
-                    res += " == ";
+                    condition += translate(expr);
+                    condition += " == ";
                     std::stringstream ss;
                     ss << constant->value;
-                    res += ss.str()+translate(constant->type);
+                    condition += ss.str()+translate(constant->type);
                 }
                 else if(auto mask = selectCase->keyset->to<IR::Mask>()){
                     cstring functionName = translate(mask);
-                    res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                    res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                    condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+                    condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
                 }
                 else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
                     if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
                         cstring functionName = translate(mask);
-                        res += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                        res += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                        condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
+                        condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
                     }
                     else{
-                        res += translate(expr)+" == ";
-                        res += translate(listExpression->components.at(cnt2));
+                        condition += translate(expr)+" == ";
+                        condition += translate(listExpression->components.at(cnt2));
                     }
                 }
                 cnt2++;
                 if(cnt2 < sz)
-                    res += " && ";
+                    condition += " && ";
             }
-            res += "){\n";
-            incIndent();
+            if(defaultCondition.size()>0)
+                defaultCondition += "&&";
+            defaultCondition += "!("+condition+")";
+
+            res += condition;
+            res += ");\n";
             res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+            res += getIndent()+"goto Exit;\n";
             currentProcedure->addSucc(nextState);
             addPred(nextState, currentProcedure->getName());
-            decIndent();
-            res += getIndent()+"}\n";
         }
         cnt--;
     }
+    gotoStmt += defaultLabel+";\n";
+    res = gotoStmt+res;
+
+    res += "\n"+getIndent()+defaultLabel+":\n";
+    defaultBlock = getIndent()+"assume("+defaultCondition+");\n"+defaultBlock;
+    defaultBlock = defaultBlock+"goto Exit;\n";
+    res += defaultBlock;
+
+    res += "Exit:\n";
     return res;
 }
 
@@ -1024,6 +1166,21 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
     else if (auto lnot = opUnary->to<IR::LNot>()){
         return translate(lnot);
     }
+    else if (auto cmpl = opUnary->to<IR::Cmpl>()) {
+        // cstring typeName = translate(opBinary->left->type);
+        cstring returnType = translate(opUnary->type);
+        cstring functionName = "bnot."+returnType;
+        cstring opbuiltin = "bvnot";
+        cstring res = "\nfunction {:bvbuiltin \""+opbuiltin+"\"} "+functionName;
+        res += "(left:"+returnType+") returns("+returnType+");\n";
+        // addDeclaration(res);
+
+        if(functions.find(functionName)==functions.end()){
+            functions.insert(functionName);
+            addDeclaration(res);
+        }
+        return functionName+"("+translate(opUnary->expr)+")";
+    }
     return "";
 }
 
@@ -1150,6 +1307,13 @@ void Translator::translate(const IR::StructField *field, cstring arg){
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader){
+    // cstring arg = ""
+    // addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
+    // addDeclaration("var "+arg+":Ref;\n");
+    // addGlobalVariables(arg);
+    // for(const IR::StructField* field:typeHeader->fields){
+    //     translate(field, arg);
+    // }
     // for(const IR::StructField* field:typeHeader->fields){
     //     translate(field);
     // }
@@ -1314,13 +1478,21 @@ void Translator::translate(const IR::P4Table *p4Table){
         if (auto key = property->value->to<IR::Key>()) {
             for(auto keyElement:key->keyElements){
                 cstring expr = translate(keyElement->expression);
-                if(expr.find("[")==nullptr&&expr.find("(")==nullptr) {
-                    table.addStatement(getIndent()+expr+" := "+expr+";\n");
+                if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
+                    std::string stmt(getIndent());
+                    stmt += expr;
+                    stmt += " := ";
+                    stmt += expr;
+                    stmt += ";\n";
+                    table.addStatement(stmt);
                     table.addModifiedGlobalVariables(expr);
                 }
             }
         }
     }
+    // std::cout << tableName << std::endl;
+    cstring gotoStmt = getIndent()+"goto ";
+
     for(auto property:p4Table->properties->properties){
         if (auto actionList = property->value->to<IR::ActionList>()) {
             // add local variables
@@ -1333,24 +1505,37 @@ void Translator::translate(const IR::P4Table *p4Table){
                     }
                 }
             }
-            // TODO: add keys
             // add action call statements
             int cnt = actionList->actionList.size();
+
             for(auto actionElement:actionList->actionList){
-                if(actionList->actionList.size()!=2){
-                    if(cnt == actionList->actionList.size())
-                        table.addStatement(getIndent()+"if(");
-                    else if(cnt != 1)
-                        table.addStatement(getIndent()+"else if(");
-                }
-                cnt--;
-                if(cnt == 0)
-                    break;
                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                     cstring actionName = translate(actionCallExpr->method);
-                    if(actionList->actionList.size()!=2)
-                        table.addStatement(name+".action_run == "+name+".action."+actionName+"){\n");
-                    incIndent();
+                    gotoStmt += "action_"; gotoStmt += actionName; gotoStmt += ", ";
+                }
+            }
+            gotoStmt += "Exit;\n";
+            table.addStatement(gotoStmt);
+
+
+            for(auto actionElement:actionList->actionList){
+                // if(actionList->actionList.size()!=1){
+                //     table.addStatement(getIndent()+"assume(");
+                // }
+                cnt--;
+                // if(cnt == 0)
+                //     break;
+                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                    cstring actionName = translate(actionCallExpr->method);
+
+                    std::string label(getIndent());
+                    label += "    action_"; label += actionName; label += ":\n";
+                    table.addStatement(label);
+
+                    if(actionList->actionList.size()!=1){
+                        table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
+                            +actionName+");\n");
+                    }
                     const IR::P4Action* action = actions[actionName];
                     table.addStatement(getIndent()+"call "+actionName+"(");
                     table.addSucc(actionName);
@@ -1363,20 +1548,109 @@ void Translator::translate(const IR::P4Table *p4Table){
                             table.addStatement(", ");
                     }
                     table.addStatement(");\n");
+                    table.addStatement(getIndent());
+                    table.addStatement("goto Exit;\n");
                     decIndent();
                 }
-                if(actionList->actionList.size()!=2)
-                    table.addStatement(getIndent()+"}\n");
             }
             // add action declaration
             translate(actionList, name+".action");
         }
     }
+    table.addStatement("\n    Exit:\n");
+
     addDeclaration("var "+name+".action_run : "+name+".action;\n");
     addGlobalVariables(name+".action_run");
+    addDeclaration("var "+name+".hit : bool;\n");
     decIndent();
     addProcedure(table);
 }
+
+// void Translator::translate(const IR::P4Table *p4Table){
+//     cstring name = translate(p4Table->name);
+//     cstring tableName = name+".apply";
+//     BoogieProcedure table = BoogieProcedure(tableName);
+//     table.addDeclaration("\n// Table "+name+"\n");
+//     table.addDeclaration("procedure {:inline 1} "+tableName+"()\n");
+//     addDeclaration("\n// Table "+name+" Actionlist Declaration\n");
+//     addDeclaration("type "+name+".action;\n");
+//     incIndent();
+//     for(auto property:p4Table->properties->properties){
+//         if (auto key = property->value->to<IR::Key>()) {
+//             for(auto keyElement:key->keyElements){
+//                 cstring expr = translate(keyElement->expression);
+//                 if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
+//                     std::string stmt(getIndent());
+//                     stmt += expr;
+//                     stmt += " := ";
+//                     stmt += expr;
+//                     stmt += ";\n";
+//                     table.addStatement(stmt);
+//                     table.addModifiedGlobalVariables(expr);
+//                 }
+//             }
+//         }
+//     }
+//     // std::cout << tableName << std::endl;
+//     for(auto property:p4Table->properties->properties){
+//         if (auto actionList = property->value->to<IR::ActionList>()) {
+//             // add local variables
+//             for(auto actionElement:actionList->actionList){
+//                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+//                     cstring actionName = translate(actionCallExpr->method);
+//                     const IR::P4Action* action = actions[actionName];
+//                     for(auto parameter:action->parameters->parameters){
+//                         table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+//                     }
+//                 }
+//             }
+//             // add action call statements
+//             int cnt = actionList->actionList.size();
+//             for(auto actionElement:actionList->actionList){
+//                 if(actionList->actionList.size()!=1){
+//                     if(cnt == actionList->actionList.size())
+//                         table.addStatement(getIndent()+"if(");
+//                     else
+//                         table.addStatement(getIndent()+"else if(");
+//                 }
+//                 cnt--;
+//                 // if(cnt == 0)
+//                 //     break;
+//                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+//                     cstring actionName = translate(actionCallExpr->method);
+//                     if(actionList->actionList.size()!=1){
+//                         table.addStatement(name+".action_run == "+name+".action."+actionName+"){\n");
+//                         incIndent();
+//                     }
+//                     const IR::P4Action* action = actions[actionName];
+//                     table.addStatement(getIndent()+"call "+actionName+"(");
+//                     table.addSucc(actionName);
+//                     addPred(actionName, tableName);
+//                     int cnt2 = action->parameters->parameters.size();
+//                     for(auto parameter:action->parameters->parameters){
+//                         cnt2--;
+//                         table.addStatement(actionName+"."+translate(parameter->name));
+//                         if(cnt2 != 0)
+//                             table.addStatement(", ");
+//                     }
+//                     table.addStatement(");\n");
+//                     decIndent();
+//                     if(actionList->actionList.size()!=1){
+//                         table.addStatement(getIndent()+"}\n");
+//                     }
+//                 }
+//                 // if(actionList->actionList.size()!=2)     
+//             }
+//             // add action declaration
+//             translate(actionList, name+".action");
+//         }
+//     }
+//     addDeclaration("var "+name+".action_run : "+name+".action;\n");
+//     addGlobalVariables(name+".action_run");
+//     addDeclaration("var "+name+".hit : bool;\n");
+//     decIndent();
+//     addProcedure(table);
+// }
 
 cstring Translator::translate(const IR::P4Table *p4Table, std::map<cstring, cstring> switchCases){
     cstring res = "";

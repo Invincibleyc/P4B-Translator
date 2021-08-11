@@ -1,6 +1,8 @@
 #ifndef BACKENDS_VERIFY_TRANSLATE_BOOGIE_STATEMENT_H_
 #define BACKENDS_VERIFY_TRANSLATE_BOOGIE_STATEMENT_H_
 
+#include "lib/cstring.h"
+
 class BoogieStatement{
 private:
 	cstring cont;

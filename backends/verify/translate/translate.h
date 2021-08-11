@@ -27,6 +27,8 @@ private:
 	std::set<cstring> globalVariables;
 	BoogieProcedure* currentProcedure=nullptr;
 	cstring deparser=nullptr;
+	// assertion
+	bool addAssertions = false;
 
 public:
 	Translator(std::ostream &out);

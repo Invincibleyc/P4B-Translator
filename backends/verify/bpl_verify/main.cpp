@@ -53,7 +53,7 @@ int main(int argc, char *const argv[]) {
     auto hook = options.getDebugHook();
     if (options.loadIRFromJson == false) {
         program = P4::parseP4File(options);
-        std::cout << "parse time " << ((double) (clock() - program_start)) / CLOCKS_PER_SEC << " s\n";
+        // std::cout << "parse time " << ((double) (clock() - program_start)) / CLOCKS_PER_SEC << " s\n";
         if (program == nullptr || ::errorCount() > 0)
             return 1;
         try {
