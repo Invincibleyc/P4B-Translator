@@ -63,11 +63,15 @@ void BoogieProcedure::addVariableDeclaration(BoogieStatement statement){
 
 void BoogieProcedure::addStatement(const cstring &cont){
 	this->hasImplementation = true;
-	if(lastStatement().find("assert(") != nullptr){
-		if(cont.find("call packet_in.extract") != nullptr){
-			statements.pop_back();
+	if(addAssertions){
+		if(lastStatement().find("assert(") != nullptr){
+			if(cont.find("call packet_in.extract") != nullptr){
+				statements.pop_back();
+			}
 		}
 	}
+	
+	// std::cout << "added: " << cont << std::endl;
 	// std::cout << cont << std::endl;
 	addStatement(BoogieStatement(cont));
 }

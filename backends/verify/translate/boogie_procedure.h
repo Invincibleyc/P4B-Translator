@@ -14,6 +14,7 @@ class BoogieProcedure{
 	std::vector<BoogieStatement> statements;
 	std::vector<BoogieStatement> variableDeclaration;
 	bool hasImplementation = false;
+	bool addAssertions = false;
 public:
 	std::set<cstring> modifies;
 	std::map<cstring, int> parameters;  // <name, size>

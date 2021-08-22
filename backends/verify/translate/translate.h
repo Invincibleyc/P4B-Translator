@@ -75,7 +75,7 @@ public:
 	cstring translate(const IR::Member *member);
 	cstring translate(const IR::PathExpression *pathExpression);
 	cstring translate(const IR::Path *path);
-	cstring translate(const IR::SelectExpression *selectExpression, cstring localDeclArg="");
+	cstring translate(const IR::SelectExpression *selectExpression, cstring stateName, cstring localDeclArg="");
 	cstring translate(const IR::Argument *argument);
 	cstring translate(const IR::Constant *constant);
 	cstring translate(const IR::ConstructorCallExpression *constructorCallExpression);

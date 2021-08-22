@@ -96,22 +96,16 @@ void Translator::addNecessaryProcedures(){
     addProcedure(extract);
 
     BoogieProcedure setValid = BoogieProcedure("setValid");
-    setValid.addDeclaration("procedure {:inline 1} setValid(header:Ref)\n");
-    incIndent();
-    setValid.addStatement(getIndent()+"isValid[header] := true;\n");
-    decIndent();
+    setValid.addDeclaration("procedure {:inline 1} setValid(header:Ref);\n");
     // setValid.addDeclaration("procedure setValid(header:Ref);\n");
     // setValid.addDeclaration("    ensures (isValid[header] == true);\n");
-    setValid.addModifiedGlobalVariables("isValid");
+    // setValid.addModifiedGlobalVariables("isValid");
     addProcedure(setValid);
 
     BoogieProcedure setInvalid = BoogieProcedure("setInvalid");
-    setInvalid.addDeclaration("procedure {:inline 1} setInvalid(header:Ref)\n");
-    incIndent();
-    setInvalid.addStatement(getIndent()+"isValid[header] := false;\n");
-    decIndent();
+    setInvalid.addDeclaration("procedure {:inline 1} setInvalid(header:Ref);\n");
     // setInvalid.addDeclaration("procedure setInvalid(header:Ref);\n");
-    // setInvalid.addDeclaration("    ensures (isValid[header] == false);\n");
+    setInvalid.addDeclaration("    ensures (isValid[header] == false);\n");
     setInvalid.addModifiedGlobalVariables("isValid");
     addProcedure(setInvalid);
 
@@ -120,6 +114,20 @@ void Translator::addNecessaryProcedures(){
     mark_to_drop.addDeclaration("    ensures drop==true;\n");
     mark_to_drop.addModifiedGlobalVariables("drop");
     addProcedure(mark_to_drop);
+
+    // add accept & reject
+    BoogieProcedure accept = BoogieProcedure("accept");
+    // accept.addDeclaration("procedure {:inline 1} accept("+localDecl+")\n");
+    accept.addDeclaration("procedure {:inline 1} accept()\n");
+    accept.setImplemented();
+    addProcedure(accept);
+
+    BoogieProcedure reject = BoogieProcedure("reject");
+    // reject.addDeclaration("procedure reject("+localDecl+");\n");
+    reject.addDeclaration("procedure reject();\n");
+    reject.addDeclaration("    ensures drop==true;\n");
+    reject.addModifiedGlobalVariables("drop");
+    addProcedure(reject);
 }
 
 void Translator::addProcedure(BoogieProcedure procedure){
@@ -525,9 +533,9 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto pathExpression = expression->to<IR::PathExpression>()){
         return translate(pathExpression);
     }
-    else if (auto selectExpression = expression->to<IR::SelectExpression>()){
-        return translate(selectExpression);
-    }
+    // else if (auto selectExpression = expression->to<IR::SelectExpression>()){
+    //     return translate(selectExpression);
+    // }
     else if (auto methodCallExpression = expression->to<IR::MethodCallExpression>()){
         return translate(methodCallExpression);
     }
@@ -565,9 +573,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
         int i = idx;
-        cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
-        while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
-            currentProcedure->removeLastStatement();
+        if(addAssertions){
+            cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
+            while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
+                currentProcedure->removeLastStatement();
+            }
         }
         if(addAssertions){
             cstring assertStmt = "assert(false);";
@@ -584,9 +594,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     //     std::cout << "find... " << s.find("isValid") << std::endl;
     // }
     if(method.find("setValid(") != nullptr || method.find("setInvalid(")){
-        if(currentProcedure->lastStatement().find("assert(")!= nullptr){
-            currentProcedure->removeLastStatement();
-        }
+        if(addAssertions){
+            if(currentProcedure->lastStatement().find("assert(")!= nullptr){
+                currentProcedure->removeLastStatement();
+            }
+        }  
         updateModifiedVariables("isValid");
         return method;
     }
@@ -657,21 +669,23 @@ cstring Translator::translate(const IR::Member *member){
     if(auto typeHeader = member->type->to<IR::Type_Header>()){
         cstring hdr = translate(member->expr)+"."+member->member.toString();
         cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
-        if(currentProcedure->lastStatement() == "" || 
-            (currentProcedure->lastStatement() != stmt 
-                && stmt.find(currentProcedure->lastStatement()) == nullptr)){
-            currentProcedure->addStatement(stmt);
-            // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
-        }
-        else{
-            // std::cout << "fail to add:" << std::endl;
-            // std::cout << stmt << std::endl;
-            // std::cout << "last statement:" << std::endl;
-            // std::cout << currentProcedure->lastStatement() << std::endl;
+        if(addAssertions){
+            if(currentProcedure->lastStatement() == "" || 
+                (currentProcedure->lastStatement() != stmt 
+                    && stmt.find(currentProcedure->lastStatement()) == nullptr)){
+                currentProcedure->addStatement(stmt);
+                // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
+            }
+            else{
+                // std::cout << "fail to add:" << std::endl;
+                // std::cout << stmt << std::endl;
+                // std::cout << "last statement:" << std::endl;
+                // std::cout << currentProcedure->lastStatement() << std::endl;
+            }
         }
         if(addAssertions){
             cstring stmt = getIndent()+"assert(false);\n";
-            if(currentProcedure->lastStatement() == "" || 
+            if(addAssertions && currentProcedure->lastStatement() == "" || 
                 (currentProcedure->lastStatement() != stmt 
                     && stmt.find(currentProcedure->lastStatement()) == nullptr)){
                 currentProcedure->addStatement(stmt);
@@ -801,12 +815,12 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
 //     return res;
 // }
 
-cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring localDeclArg){
+cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring stateName, cstring localDeclArg){
     cstring res = "";
     cstring gotoStmt = getIndent()+"goto ";
     bool flag = false;
 
-    cstring defaultLabel = "DEFAULT";
+    cstring defaultLabel = "State$"+stateName+"$"+"DEFAULT";
     cstring defaultBlock = "";
     cstring defaultCondition = "";
 
@@ -820,7 +834,8 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
             flag = true;
             cstring nextState = translate(selectCase->state);
 
-            defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+            defaultBlock += getIndent()+"goto "+"State$"+nextState+";\n";
+            // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
             currentProcedure->addSucc(nextState);
             addPred(nextState, currentProcedure->getName());
         }
@@ -828,7 +843,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
             cstring nextState = translate(selectCase->state);
 
             // Goto label for next state
-            cstring gotoLabel = nextState+"_"+ss_cnt.str();
+            cstring gotoLabel = "State$"+stateName+"$"+nextState+"_"+ss_cnt.str();
             gotoStmt += gotoLabel+", ";
 
             res += getIndent()+"\n"+gotoLabel+":\n";
@@ -872,8 +887,9 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
 
             res += condition;
             res += ");\n";
-            res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
-            res += getIndent()+"goto Exit;\n";
+            res += getIndent()+"goto "+"State$"+nextState+";\n";
+            // res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
+            // res += getIndent()+"goto Exit;\n";
             currentProcedure->addSucc(nextState);
             addPred(nextState, currentProcedure->getName());
         }
@@ -884,10 +900,11 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
 
     res += "\n"+getIndent()+defaultLabel+":\n";
     defaultBlock = getIndent()+"assume("+defaultCondition+");\n"+defaultBlock;
-    defaultBlock = defaultBlock+"goto Exit;\n";
+    if(!flag)
+        defaultBlock = defaultBlock+"goto State$reject;\n";
     res += defaultBlock;
 
-    res += "Exit:\n";
+    // res += "State$"+stateName+"$"+"Exit:\n";
     return res;
 }
 
@@ -1345,6 +1362,7 @@ void Translator::translate(const IR::Type_Package *typePackage){
 void Translator::translate(const IR::P4Parser *p4Parser){
     cstring parserName = p4Parser->name.toString();
     BoogieProcedure parser = BoogieProcedure(parserName);
+    currentProcedure = &parser;
     parser.addDeclaration("\n// Parser "+parserName+"\n");
     parser.addDeclaration("procedure {:inline 1} "+parserName+"()\n");
     incIndent();
@@ -1368,59 +1386,68 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         }
     }
     // parser.addStatement("    call start("+localDeclArg+");\n");
-    parser.addStatement("    call start();\n");
-    decIndent();
-    parser.addSucc("start");
-    addPred("start", parserName);
-    addProcedure(parser);
+    parser.addStatement(getIndent()+"goto State$start;\n");
+    
+    parser.addSucc("accept");
+    addPred("accept", parserName);
+
+    parser.addSucc("reject");
+    addPred("reject", parserName);
+    
     for(auto state:p4Parser->states){
         translate(state);
         // translate(state, localDecl, localDeclArg);
     }
 
-    // add accept & reject
-    BoogieProcedure accept = BoogieProcedure("accept");
-    // accept.addDeclaration("procedure {:inline 1} accept("+localDecl+")\n");
-    accept.addDeclaration("procedure {:inline 1} accept()\n");
-    accept.setImplemented();
-    addProcedure(accept);
+    parser.addStatement("\n"+getIndent()+"State$accept:\n");
+    parser.addStatement(getIndent()+"call accept();\n");
+    parser.addStatement(getIndent()+"goto Exit;\n");
 
-    BoogieProcedure reject = BoogieProcedure("reject");
-    // reject.addDeclaration("procedure reject("+localDecl+");\n");
-    reject.addDeclaration("procedure reject();\n");
-    reject.addDeclaration("    ensures drop==true;\n");
-    reject.addModifiedGlobalVariables("drop");
-    addProcedure(reject);
+    parser.addStatement("\n"+getIndent()+"State$reject:\n");
+    parser.addStatement(getIndent()+"call reject();\n");
+    parser.addStatement(getIndent()+"goto Exit;\n");
+
+    parser.addStatement("\n"+getIndent()+"Exit:\n");
+
+    decIndent();
+    addProcedure(parser);
+
     // TODO: parser local variables
 }
 
 void Translator::translate(const IR::ParserState *parserState, cstring localDecl, cstring localDeclArg){
     cstring stateName = parserState->name.toString();
+    cstring stateLabel = getIndent(); stateLabel += "    State$"; stateLabel += stateName;
     if(stateName=="accept" || stateName=="reject")
         return;
-    BoogieProcedure state = BoogieProcedure(stateName);
-    state.isParserState = true;
-    currentProcedure = &state;
-    state.addDeclaration("\n//Parser State "+stateName+"\n");
-    state.addDeclaration("procedure {:inline 1} "+stateName+"("+localDecl+")\n");
-    incIndent();
+    // BoogieProcedure state = BoogieProcedure(stateName);
+    // state.isParserState = true;
+    // currentProcedure = &state;
+    // state.addDeclaration("\n//Parser State "+stateName+"\n");
+    // state.addDeclaration("procedure {:inline 1} "+stateName+"("+localDecl+")\n");
+    // incIndent();
+    // currentProcedure->addStatement(stateLabel+":\n");
+    currentProcedure->addStatement("\n"+stateLabel+":\n");
     for(auto statOrDecl:parserState->components){
-        state.addStatement(translate(statOrDecl));
+        currentProcedure->addStatement(translate(statOrDecl));
     }
     if(parserState->selectExpression!=nullptr){
         if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
             cstring nextState = translate(pathExpression);
-            state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
-            state.addSucc(nextState);
-            addPred(nextState, stateName);
+            cstring nextStateLabel = "State$"+nextState;
+            currentProcedure->addStatement(getIndent()+"goto "+nextStateLabel+";\n");
+            // currentProcedure->addSucc(nextS)
+            // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
+            // state.addSucc(nextState);
+            // addPred(nextState, stateName);
         }
         else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
-            state.addStatement(translate(selectExpression, localDeclArg));
+            currentProcedure->addStatement(translate(selectExpression, stateName, localDeclArg));
         }
     }
     // TODO: add succ
-    decIndent();
-    addProcedure(state);
+    // decIndent();
+    // addProcedure(state);
 }
 
 void Translator::translate(const IR::P4Control *p4Control){
@@ -1528,8 +1555,8 @@ void Translator::translate(const IR::P4Table *p4Table){
                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                     cstring actionName = translate(actionCallExpr->method);
 
-                    std::string label(getIndent());
-                    label += "    action_"; label += actionName; label += ":\n";
+                    std::string label("\n"+getIndent());
+                    label += "action_"; label += actionName; label += ":\n";
                     table.addStatement(label);
 
                     if(actionList->actionList.size()!=1){
@@ -1550,7 +1577,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                     table.addStatement(");\n");
                     table.addStatement(getIndent());
                     table.addStatement("goto Exit;\n");
-                    decIndent();
+                    // decIndent();
                 }
             }
             // add action declaration
@@ -1720,7 +1747,7 @@ cstring Translator::translate(const IR::P4Table *p4Table, std::map<cstring, cstr
             }
         }
     }
-    decIndent();
+    // decIndent();
     return res;
 }
 
