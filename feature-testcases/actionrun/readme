@@ -1,0 +1,5 @@
+Derived from 04-GatewayDefault
+
+- default:  default case
+- empty-case:  a case with an empty block
+- common-case: two cases with a common block

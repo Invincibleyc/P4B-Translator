@@ -1,0 +1,514 @@
+type Ref;
+type error=bv1;
+type HeaderStack = [int]Ref;
+var last:[HeaderStack]Ref;
+var forward:bool;
+var isValid:[Ref]bool;
+var emit:[Ref]bool;
+var stack.index:[HeaderStack]int;
+var size:[HeaderStack]int;
+var drop:bool;
+
+// Struct standard_metadata_t
+var standard_metadata.ingress_port:bv9;
+var standard_metadata.egress_spec:bv9;
+var standard_metadata.egress_port:bv9;
+var standard_metadata.instance_type:bv32;
+var standard_metadata.packet_length:bv32;
+var standard_metadata.enq_timestamp:bv32;
+var standard_metadata.enq_qdepth:bv19;
+var standard_metadata.deq_timedelta:bv32;
+var standard_metadata.deq_qdepth:bv19;
+var standard_metadata.ingress_global_timestamp:bv48;
+var standard_metadata.egress_global_timestamp:bv48;
+var standard_metadata.mcast_grp:bv16;
+var standard_metadata.egress_rid:bv16;
+var standard_metadata.checksum_error:bv1;
+var standard_metadata.parser_error:error;
+var standard_metadata.priority:bv3;
+
+// Struct ingress_metadata_t
+
+// Struct metadata
+var meta.ing_metadata.drop:bv8;
+var meta.ing_metadata.egress_port:bv8;
+var meta.ing_metadata.f1:bv8;
+var meta.ing_metadata.f2:bv16;
+var meta.ing_metadata.f3:bv32;
+var meta.ing_metadata.f4:bv64;
+
+// Struct headers
+
+// Header ethernet_t
+var hdr.ethernet:Ref;
+var hdr.ethernet.dstAddr:bv48;
+var hdr.ethernet.srcAddr:bv48;
+var hdr.ethernet.ethertype:bv16;
+
+// Table e_t1_0 Actionlist Declaration
+type e_t1_0.action;
+const unique e_t1_0.action.nop : e_t1_0.action;
+const unique e_t1_0.action.NoAction_0 : e_t1_0.action;
+var e_t1_0.action_run : e_t1_0.action;
+var e_t1_0.hit : bool;
+
+// Table i_t1_0 Actionlist Declaration
+type i_t1_0.action;
+const unique i_t1_0.action.nop_2 : i_t1_0.action;
+const unique i_t1_0.action.ing_drop : i_t1_0.action;
+const unique i_t1_0.action.set_f1 : i_t1_0.action;
+const unique i_t1_0.action.set_f2 : i_t1_0.action;
+const unique i_t1_0.action.set_f3 : i_t1_0.action;
+const unique i_t1_0.action.set_egress_port : i_t1_0.action;
+const unique i_t1_0.action.NoAction_1 : i_t1_0.action;
+var i_t1_0.action_run : i_t1_0.action;
+var i_t1_0.hit : bool;
+
+// Table i_t2_0 Actionlist Declaration
+type i_t2_0.action;
+const unique i_t2_0.action.nop_6 : i_t2_0.action;
+const unique i_t2_0.action.set_f2_2 : i_t2_0.action;
+const unique i_t2_0.action.NoAction_7 : i_t2_0.action;
+var i_t2_0.action_run : i_t2_0.action;
+var i_t2_0.hit : bool;
+
+// Table i_t3_0 Actionlist Declaration
+type i_t3_0.action;
+const unique i_t3_0.action.nop_7 : i_t3_0.action;
+const unique i_t3_0.action.set_f3_2 : i_t3_0.action;
+const unique i_t3_0.action.NoAction_8 : i_t3_0.action;
+var i_t3_0.action_run : i_t3_0.action;
+var i_t3_0.hit : bool;
+
+// Table i_t4_0 Actionlist Declaration
+type i_t4_0.action;
+const unique i_t4_0.action.nop_8 : i_t4_0.action;
+const unique i_t4_0.action.set_f4 : i_t4_0.action;
+const unique i_t4_0.action.NoAction_9 : i_t4_0.action;
+var i_t4_0.action_run : i_t4_0.action;
+var i_t4_0.hit : bool;
+
+// Action NoAction_0
+procedure {:inline 1} NoAction_0()
+{
+}
+
+// Action NoAction_1
+procedure {:inline 1} NoAction_1()
+{
+}
+
+// Action NoAction_7
+procedure {:inline 1} NoAction_7()
+{
+}
+
+// Action NoAction_8
+procedure {:inline 1} NoAction_8()
+{
+}
+
+// Action NoAction_9
+procedure {:inline 1} NoAction_9()
+{
+}
+
+// Parser ParserImpl
+procedure {:inline 1} ParserImpl()
+	modifies drop, isValid;
+{
+    goto State$start;
+
+        State$start:
+    call packet_in.extract(hdr.ethernet);
+    goto State$accept;
+
+    State$accept:
+    call accept();
+    goto Exit;
+
+    State$reject:
+    call reject();
+    goto Exit;
+
+    Exit:
+}
+procedure {:inline 1} accept()
+{
+}
+procedure clear_drop();
+    ensures drop==false;
+	modifies drop;
+procedure clear_emit();
+    ensures (forall header:Ref:: emit[header]==false);
+	modifies emit;
+procedure clear_forward();
+    ensures forward==false;
+	modifies forward;
+procedure clear_valid();
+    ensures (forall header:Ref:: isValid[header]==false);
+	modifies isValid;
+
+// Control computeChecksum
+procedure {:inline 1} computeChecksum()
+{
+}
+
+procedure e_t1_0.action_run.limit();
+    ensures(e_t1_0.action_run==e_t1_0.action.nop || e_t1_0.action_run==e_t1_0.action.NoAction_0);
+	modifies e_t1_0.action_run;
+
+// Table e_t1_0
+procedure {:inline 1} e_t1_0.apply()
+	modifies hdr.ethernet.srcAddr;
+{
+    hdr.ethernet.srcAddr := hdr.ethernet.srcAddr;
+
+    call e_t1_0.apply_table_entry();
+    goto action_nop, action_NoAction_0, Exit;
+
+    action_nop:
+    call nop();
+    goto Exit;
+
+    action_NoAction_0:
+    call NoAction_0();
+    goto Exit;
+
+    Exit:
+        call e_t1_0.apply_table_exit();
+}
+
+// Table Entry e_t1_0.apply_table_entry
+procedure e_t1_0.apply_table_entry();
+
+// Table Exit e_t1_0.apply_table_exit
+procedure e_t1_0.apply_table_exit();
+
+// Control egress
+procedure {:inline 1} egress()
+	modifies hdr.ethernet.srcAddr;
+{
+    call e_t1_0.apply();
+}
+
+procedure i_t1_0.action_run.limit();
+    ensures(i_t1_0.action_run==i_t1_0.action.nop_2 || i_t1_0.action_run==i_t1_0.action.ing_drop || i_t1_0.action_run==i_t1_0.action.set_f1 || i_t1_0.action_run==i_t1_0.action.set_f2 || i_t1_0.action_run==i_t1_0.action.set_f3 || i_t1_0.action_run==i_t1_0.action.set_egress_port || i_t1_0.action_run==i_t1_0.action.NoAction_1);
+	modifies i_t1_0.action_run;
+
+// Table i_t1_0
+procedure {:inline 1} i_t1_0.apply()
+	modifies hdr.ethernet.dstAddr, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
+{
+    var set_egress_port.egress_port:bv8;
+    var set_f3.f3:bv32;
+    var set_f2.f2:bv16;
+    var set_f1.f1:bv8;
+    hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
+
+    call i_t1_0.apply_table_entry();
+    goto action_nop_2, action_ing_drop, action_set_f1, action_set_f2, action_set_f3, action_set_egress_port, action_NoAction_1, Exit;
+
+    action_nop_2:
+    call nop_2();
+    goto Exit;
+
+    action_ing_drop:
+    call ing_drop();
+    goto Exit;
+
+    action_set_f1:
+    call set_f1(set_f1.f1);
+    goto Exit;
+
+    action_set_f2:
+    call set_f2(set_f2.f2);
+    goto Exit;
+
+    action_set_f3:
+    call set_f3(set_f3.f3);
+    goto Exit;
+
+    action_set_egress_port:
+    call set_egress_port(set_egress_port.egress_port);
+    goto Exit;
+
+    action_NoAction_1:
+    call NoAction_1();
+    goto Exit;
+
+    Exit:
+        call i_t1_0.apply_table_exit();
+}
+
+// Table Entry i_t1_0.apply_table_entry
+procedure i_t1_0.apply_table_entry();
+
+// Table Exit i_t1_0.apply_table_exit
+procedure i_t1_0.apply_table_exit();
+
+procedure i_t2_0.action_run.limit();
+    ensures(i_t2_0.action_run==i_t2_0.action.nop_6 || i_t2_0.action_run==i_t2_0.action.set_f2_2 || i_t2_0.action_run==i_t2_0.action.NoAction_7);
+	modifies i_t2_0.action_run;
+
+// Table i_t2_0
+procedure {:inline 1} i_t2_0.apply()
+	modifies hdr.ethernet.dstAddr, meta.ing_metadata.f2;
+{
+    var set_f2_2.f2:bv16;
+    hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
+
+    call i_t2_0.apply_table_entry();
+    goto action_nop_6, action_set_f2_2, action_NoAction_7, Exit;
+
+    action_nop_6:
+    call nop_6();
+    goto Exit;
+
+    action_set_f2_2:
+    call set_f2_2(set_f2_2.f2);
+    goto Exit;
+
+    action_NoAction_7:
+    call NoAction_7();
+    goto Exit;
+
+    Exit:
+        call i_t2_0.apply_table_exit();
+}
+
+// Table Entry i_t2_0.apply_table_entry
+procedure i_t2_0.apply_table_entry();
+
+// Table Exit i_t2_0.apply_table_exit
+procedure i_t2_0.apply_table_exit();
+
+procedure i_t3_0.action_run.limit();
+    ensures(i_t3_0.action_run==i_t3_0.action.nop_7 || i_t3_0.action_run==i_t3_0.action.set_f3_2 || i_t3_0.action_run==i_t3_0.action.NoAction_8);
+	modifies i_t3_0.action_run;
+
+// Table i_t3_0
+procedure {:inline 1} i_t3_0.apply()
+	modifies hdr.ethernet.dstAddr, meta.ing_metadata.f3;
+{
+    var set_f3_2.f3:bv32;
+    hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
+
+    call i_t3_0.apply_table_entry();
+    goto action_nop_7, action_set_f3_2, action_NoAction_8, Exit;
+
+    action_nop_7:
+    call nop_7();
+    goto Exit;
+
+    action_set_f3_2:
+    call set_f3_2(set_f3_2.f3);
+    goto Exit;
+
+    action_NoAction_8:
+    call NoAction_8();
+    goto Exit;
+
+    Exit:
+        call i_t3_0.apply_table_exit();
+}
+
+// Table Entry i_t3_0.apply_table_entry
+procedure i_t3_0.apply_table_entry();
+
+// Table Exit i_t3_0.apply_table_exit
+procedure i_t3_0.apply_table_exit();
+
+procedure i_t4_0.action_run.limit();
+    ensures(i_t4_0.action_run==i_t4_0.action.nop_8 || i_t4_0.action_run==i_t4_0.action.set_f4 || i_t4_0.action_run==i_t4_0.action.NoAction_9);
+	modifies i_t4_0.action_run;
+
+// Table i_t4_0
+procedure {:inline 1} i_t4_0.apply()
+	modifies hdr.ethernet.dstAddr, meta.ing_metadata.f4;
+{
+    var set_f4.f4:bv64;
+    hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
+
+    call i_t4_0.apply_table_entry();
+    goto action_nop_8, action_set_f4, action_NoAction_9, Exit;
+
+    action_nop_8:
+    call nop_8();
+    goto Exit;
+
+    action_set_f4:
+    call set_f4(set_f4.f4);
+    goto Exit;
+
+    action_NoAction_9:
+    call NoAction_9();
+    goto Exit;
+
+    Exit:
+        call i_t4_0.apply_table_exit();
+}
+
+// Table Entry i_t4_0.apply_table_entry
+procedure i_t4_0.apply_table_entry();
+
+// Table Exit i_t4_0.apply_table_exit
+procedure i_t4_0.apply_table_exit();
+
+// Action ing_drop
+procedure {:inline 1} ing_drop()
+	modifies meta.ing_metadata.drop;
+{
+    meta.ing_metadata.drop := 1bv8;
+}
+
+// Control ingress
+procedure {:inline 1} ingress()
+	modifies hdr.ethernet.dstAddr, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3, meta.ing_metadata.f4;
+{
+    var set_egress_port.egress_port:bv8;
+    var set_f3.f3:bv32;
+    var set_f2.f2:bv16;
+    var set_f1.f1:bv8;
+        call i_t2_0.apply();
+        call i_t3_0.apply();
+        call i_t4_0.apply();
+    hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
+    if(i_t1_0.action_run == i_t1_0.action.nop_2){
+        call nop_2();
+    }
+    else if(i_t1_0.action_run == i_t1_0.action.ing_drop){
+        call ing_drop();
+    }
+    else if(i_t1_0.action_run == i_t1_0.action.set_f1){
+        call set_f1(set_f1.f1);
+    }
+    else if(i_t1_0.action_run == i_t1_0.action.set_f2){
+        call set_f2(set_f2.f2);
+    }
+    else if(i_t1_0.action_run == i_t1_0.action.set_f3){
+        call set_f3(set_f3.f3);
+    }
+    else if(i_t1_0.action_run == i_t1_0.action.set_egress_port){
+        call set_egress_port(set_egress_port.egress_port);
+    }
+}
+procedure init.stack.index();
+    ensures (forall s:HeaderStack::stack.index[s]==0);
+	modifies stack.index;
+procedure {:inline 1} main()
+	modifies drop, hdr.ethernet.dstAddr, hdr.ethernet.srcAddr, isValid, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3, meta.ing_metadata.f4;
+{
+    call ParserImpl();
+    call verifyChecksum();
+    call ingress();
+    call egress();
+    call computeChecksum();
+}
+procedure mainProcedure()
+	modifies drop, e_t1_0.action_run, emit, forward, hdr.ethernet.dstAddr, hdr.ethernet.srcAddr, i_t1_0.action_run, i_t2_0.action_run, i_t3_0.action_run, i_t4_0.action_run, isValid, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3, meta.ing_metadata.f4, stack.index;
+{
+    call i_t4_0.action_run.limit();
+    call i_t3_0.action_run.limit();
+    call i_t2_0.action_run.limit();
+    call i_t1_0.action_run.limit();
+    call e_t1_0.action_run.limit();
+    call clear_forward();
+    call clear_drop();
+    call clear_valid();
+    call clear_emit();
+    call init.stack.index();
+    call main();
+}
+procedure mark_to_drop();
+    ensures drop==true;
+	modifies drop;
+
+// Action nop
+procedure {:inline 1} nop()
+{
+}
+
+// Action nop_2
+procedure {:inline 1} nop_2()
+{
+}
+
+// Action nop_6
+procedure {:inline 1} nop_6()
+{
+}
+
+// Action nop_7
+procedure {:inline 1} nop_7()
+{
+}
+
+// Action nop_8
+procedure {:inline 1} nop_8()
+{
+}
+procedure packet_in.extract(header:Ref);
+    ensures (isValid[header] == true);
+	modifies isValid;
+procedure reject();
+    ensures drop==true;
+	modifies drop;
+procedure {:inline 1} setInvalid(header:Ref);
+    ensures (isValid[header] == false);
+	modifies isValid;
+procedure {:inline 1} setValid(header:Ref);
+
+// Action set_egress_port
+procedure {:inline 1} set_egress_port(egress_port:bv8)
+	modifies meta.ing_metadata.egress_port;
+{
+    meta.ing_metadata.egress_port := egress_port;
+}
+
+// Action set_f1
+procedure {:inline 1} set_f1(f1:bv8)
+	modifies meta.ing_metadata.f1;
+{
+    meta.ing_metadata.f1 := f1;
+}
+
+// Action set_f2
+procedure {:inline 1} set_f2(f2:bv16)
+	modifies meta.ing_metadata.f2;
+{
+    meta.ing_metadata.f2 := f2;
+}
+
+// Action set_f2_2
+procedure {:inline 1} set_f2_2(f2:bv16)
+	modifies meta.ing_metadata.f2;
+{
+    meta.ing_metadata.f2 := f2;
+}
+
+// Action set_f3
+procedure {:inline 1} set_f3(f3:bv32)
+	modifies meta.ing_metadata.f3;
+{
+    meta.ing_metadata.f3 := f3;
+}
+
+// Action set_f3_2
+procedure {:inline 1} set_f3_2(f3:bv32)
+	modifies meta.ing_metadata.f3;
+{
+    meta.ing_metadata.f3 := f3;
+}
+
+// Action set_f4
+procedure {:inline 1} set_f4(f4:bv64)
+	modifies meta.ing_metadata.f4;
+{
+    meta.ing_metadata.f4 := f4;
+}
+
+// Control verifyChecksum
+procedure {:inline 1} verifyChecksum()
+{
+}

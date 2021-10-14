@@ -1495,6 +1495,20 @@ void Translator::translate(const IR::P4Action *p4Action){
 void Translator::translate(const IR::P4Table *p4Table){
     cstring name = translate(p4Table->name);
     cstring tableName = name+".apply";
+
+    // add table entry
+    BoogieProcedure tableEntry = BoogieProcedure(tableName+"_table_entry");
+    tableEntry.addDeclaration("\n// Table Entry "+tableName+"_table_entry"+"\n");
+    tableEntry.addDeclaration("procedure "+tableName+"_table_entry"+"();\n");
+    addProcedure(tableEntry);
+
+    // add table exit
+    BoogieProcedure tableExit = BoogieProcedure(tableName+"_table_exit");
+    tableExit.addDeclaration("\n// Table Exit "+tableName+"_table_exit"+"\n");
+    tableExit.addDeclaration("procedure "+tableName+"_table_exit();\n");
+    addProcedure(tableExit);
+
+
     BoogieProcedure table = BoogieProcedure(tableName);
     table.addDeclaration("\n// Table "+name+"\n");
     table.addDeclaration("procedure {:inline 1} "+tableName+"()\n");
@@ -1517,6 +1531,11 @@ void Translator::translate(const IR::P4Table *p4Table){
             }
         }
     }
+
+
+    table.addStatement("\n    call "+tableName+"_table_entry"+"();\n");
+
+
     // std::cout << tableName << std::endl;
     cstring gotoStmt = getIndent()+"goto ";
 
@@ -1560,8 +1579,8 @@ void Translator::translate(const IR::P4Table *p4Table){
                     table.addStatement(label);
 
                     if(actionList->actionList.size()!=1){
-                        table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
-                            +actionName+");\n");
+                        // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
+                            // +actionName+");\n");
                     }
                     const IR::P4Action* action = actions[actionName];
                     table.addStatement(getIndent()+"call "+actionName+"(");
@@ -1585,6 +1604,7 @@ void Translator::translate(const IR::P4Table *p4Table){
         }
     }
     table.addStatement("\n    Exit:\n");
+    table.addStatement("        call "+tableName+"_table_exit();\n");
 
     addDeclaration("var "+name+".action_run : "+name+".action;\n");
     addGlobalVariables(name+".action_run");
