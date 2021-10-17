@@ -495,28 +495,189 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
 cstring Translator::translate(const IR::SwitchStatement *switchStatement){
     cstring res = "";
     cstring expr = translate(switchStatement->expression);
-    if(expr.find(".apply().action_run") != nullptr){
-        cstring tableAction;
+    if(auto actionEnum = switchStatement->expression->type->to<IR::Type_ActionEnum>()){
         cstring tableName;
         std::string s = expr.c_str();
         std::string::size_type idx = s.find(".apply()");
         if(idx != std::string::npos){
             int i = idx;
             tableName = s.substr(0, idx);
-            tableAction = tableName+".action";
         }
-        std::map<cstring, cstring> switchCases;
-        int cnt = switchStatement->cases.size();
-        int size = switchStatement->cases.size();
+        // get the corresponding table
+        const IR::P4Table* p4Table = tables[tableName];
+
+        
+
+        /* 
+            - add goto statement
+            - local variables
+        */
+        cstring gotoStmt = getIndent()+"goto ";
+        bool firstAction = true;
+
+        // Add local variables (action parameters) declaration
+        for(auto property:p4Table->properties->properties){
+            if (auto actionList = property->value->to<IR::ActionList>()) {
+                // add local variables
+                for(auto actionElement:actionList->actionList){
+                    if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                        cstring actionName = translate(actionCallExpr->method);
+                        const IR::P4Action* action = actions[actionName];
+                        for(auto parameter:action->parameters->parameters){
+                            currentProcedure->addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                        }
+                        // goto statement
+                        if(!firstAction)
+                            gotoStmt += ", ";
+                        else
+                            firstAction = false;
+                        gotoStmt += "Switch$"+tableName+"$"+actionName;
+                    }
+                }
+            }
+        }
+        // Add goto Statement
+        gotoStmt += ";\n";
+        currentProcedure->addStatement(gotoStmt);
+
+        /* For default case 
+             Record actions that handled by other cases
+             Other actions are handled by the default case (if exists)
+        */
+        std::set<cstring> handledActions;
         for(auto switchCase:switchStatement->cases){
-            cstring label = translate(switchCase->label);
-            label = tableAction+"."+label;
-            incIndent();
-            cstring statement = translate(switchCase->statement);
-            decIndent();
-            switchCases[label] = statement;
+            if (auto defaultExpression = switchCase->label->to<IR::DefaultExpression>()){}
+            else{
+                // get the corresponding action
+                cstring actionName = translate(switchCase->label);
+                handledActions.insert(actionName);
+            }
+        }        
+
+        for(auto switchCase:switchStatement->cases){
+            // get the action's name
+            // cstring actionName = translate(switchCase->label);
+
+            /* TODO:
+                Add parameters
+                Add table entry & exit
+                Add action invocation
+                Add table labels
+                case fall Through
+                without default?
+            */
+            std::cout << "here" << std::endl;
+
+            if (auto defaultExpression = switchCase->label->to<IR::DefaultExpression>()){
+                // all alternative actions should be considered
+                for(auto property:p4Table->properties->properties){
+                    if (auto actionList = property->value->to<IR::ActionList>()) {
+                        for(auto actionElement:actionList->actionList){
+                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                                cstring actionName = translate(actionCallExpr->method);
+                                std::cout << actionName << std::endl;
+                                if(handledActions.find(actionName)==handledActions.end()){
+                                    std::cout << actionName << std::endl;
+                                    const IR::P4Action* action = actions[actionName];
+
+                                    // Add label for actions
+                                    currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$"+actionName+":\n");
+
+                                    incIndent();
+
+                                    // Table entry
+                                    currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
+
+                                    // Add Parameters
+                                    cstring actionCall = "";
+                                    actionCall += getIndent()+"call "+actionName+"(";
+                                    currentProcedure->addSucc(actionName);
+                                    addPred(actionName, currentProcedure->getName());
+                                    int cnt = action->parameters->parameters.size();
+                                    for(auto parameter:action->parameters->parameters){
+                                        cnt--;
+                                        actionCall += actionName+"."+translate(parameter->name);
+                                        if(cnt != 0)
+                                            actionCall += ", ";
+                                    }
+                                    actionCall += ");\n";
+
+                                    currentProcedure->addStatement(actionCall);
+                                    // Table exit
+                                    currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
+                                    // statements are added to the current procedure
+                                    translate(switchCase->statement);
+                                    currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
+                                    decIndent();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else{
+                cstring actionName = translate(switchCase->label);
+                const IR::P4Action* action = actions[actionName];
+
+                // Add label for actions
+                currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$"+actionName+":\n");
+
+                incIndent();
+
+                // Table entry
+                currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
+
+                // Add Parameters
+                cstring actionCall = "";
+                actionCall += getIndent()+"call "+actionName+"(";
+                currentProcedure->addSucc(actionName);
+                addPred(actionName, currentProcedure->getName());
+                int cnt = action->parameters->parameters.size();
+                for(auto parameter:action->parameters->parameters){
+                    cnt--;
+                    actionCall += actionName+"."+translate(parameter->name);
+                    if(cnt != 0)
+                        actionCall += ", ";
+                }
+                actionCall += ");\n";
+
+                currentProcedure->addStatement(actionCall);
+                // Table exit
+                currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
+                // statements are added to the current procedure
+                translate(switchCase->statement);
+                currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
+                decIndent();
+            }
         }
-        res += translate(tables[tableName], switchCases);
+
+        // Add continue label
+        currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$Continue:\n");
+
+
+        // cstring tableAction;
+        // cstring tableName;
+        // std::string s = expr.c_str();
+        // std::string::size_type idx = s.find(".apply()");
+        // if(idx != std::string::npos){
+        //     int i = idx;
+        //     tableName = s.substr(0, idx);
+        //     tableAction = tableName+".action";
+        // }
+        // std::map<cstring, cstring> switchCases;
+        // int cnt = switchStatement->cases.size();
+        // int size = switchStatement->cases.size();
+        // for(auto switchCase:switchStatement->cases){
+        //     cstring label = translate(switchCase->label);
+        //     label = tableAction+"."+label;
+        //     incIndent();
+        //     cstring statement = translate(switchCase->statement);
+        //     decIndent();
+        //     switchCases[label] = statement;
+        //     std::cout << statement << std::endl;
+        //     std::cout << switchCase->statement << std::endl;
+        // }
+        // res += translate(tables[tableName], switchCases);
     }
     currentProcedure->addStatement(res);
     return "";
@@ -553,6 +714,9 @@ cstring Translator::translate(const IR::Expression *expression){
     }
     else if (auto opBinary = expression->to<IR::Operation_Unary>()){
         return translate(opBinary);
+    }
+    else if (auto defaultExpression = expression->to<IR::DefaultExpression>()){
+        return "default";
     }
     return "";
 }
@@ -1699,6 +1863,9 @@ void Translator::translate(const IR::P4Table *p4Table){
 //     addProcedure(table);
 // }
 
+/*
+    translate action_run (discarded)
+*/
 cstring Translator::translate(const IR::P4Table *p4Table, std::map<cstring, cstring> switchCases){
     cstring res = "";
     cstring name = translate(p4Table->name);
