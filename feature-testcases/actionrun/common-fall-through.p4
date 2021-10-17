@@ -113,11 +113,13 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         }
     }
     apply {
+        i_t2.apply();
         switch (i_t1.apply().action_run) {
-            nop: {
-                i_t2.apply();
+            nop: 
+            set_egress_port: {
+                i_t3.apply();
             }
-            set_egress_port: 
+            default: 
         }
 
     }

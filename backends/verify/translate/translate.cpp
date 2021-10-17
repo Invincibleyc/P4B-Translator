@@ -554,19 +554,27 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
             }
         }        
 
+        int caseCnt = -1;
         for(auto switchCase:switchStatement->cases){
+            caseCnt += 1;
             // get the action's name
             // cstring actionName = translate(switchCase->label);
 
-            /* TODO:
+            /*
                 Add parameters
                 Add table entry & exit
                 Add action invocation
                 Add table labels
                 case fall Through
-                without default?
+                without default? (the compiler always adds a default case)
             */
-            std::cout << "here" << std::endl;
+
+            // Fall Through
+            int fallThrough = caseCnt;
+            while(fallThrough < switchStatement->cases.size() &&
+                switchStatement->cases[fallThrough]->statement == nullptr){
+                fallThrough++;
+            }
 
             if (auto defaultExpression = switchCase->label->to<IR::DefaultExpression>()){
                 // all alternative actions should be considered
@@ -575,9 +583,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                         for(auto actionElement:actionList->actionList){
                             if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                                 cstring actionName = translate(actionCallExpr->method);
-                                std::cout << actionName << std::endl;
                                 if(handledActions.find(actionName)==handledActions.end()){
-                                    std::cout << actionName << std::endl;
                                     const IR::P4Action* action = actions[actionName];
 
                                     // Add label for actions
@@ -605,8 +611,8 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                                     currentProcedure->addStatement(actionCall);
                                     // Table exit
                                     currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
-                                    // statements are added to the current procedure
-                                    translate(switchCase->statement);
+                                    if(fallThrough < switchStatement->cases.size())
+                                        translate(switchStatement->cases[fallThrough]->statement);
                                     currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
                                     decIndent();
                                 }
@@ -640,12 +646,15 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                         actionCall += ", ";
                 }
                 actionCall += ");\n";
-
                 currentProcedure->addStatement(actionCall);
+
                 // Table exit
                 currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
-                // statements are added to the current procedure
-                translate(switchCase->statement);
+                
+                
+                if(fallThrough < switchStatement->cases.size())
+                    translate(switchStatement->cases[fallThrough]->statement);
+
                 currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
                 decIndent();
             }
@@ -653,31 +662,6 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
 
         // Add continue label
         currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$Continue:\n");
-
-
-        // cstring tableAction;
-        // cstring tableName;
-        // std::string s = expr.c_str();
-        // std::string::size_type idx = s.find(".apply()");
-        // if(idx != std::string::npos){
-        //     int i = idx;
-        //     tableName = s.substr(0, idx);
-        //     tableAction = tableName+".action";
-        // }
-        // std::map<cstring, cstring> switchCases;
-        // int cnt = switchStatement->cases.size();
-        // int size = switchStatement->cases.size();
-        // for(auto switchCase:switchStatement->cases){
-        //     cstring label = translate(switchCase->label);
-        //     label = tableAction+"."+label;
-        //     incIndent();
-        //     cstring statement = translate(switchCase->statement);
-        //     decIndent();
-        //     switchCases[label] = statement;
-        //     std::cout << statement << std::endl;
-        //     std::cout << switchCase->statement << std::endl;
-        // }
-        // res += translate(tables[tableName], switchCases);
     }
     currentProcedure->addStatement(res);
     return "";
