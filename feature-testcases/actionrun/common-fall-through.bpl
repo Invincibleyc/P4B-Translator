@@ -147,7 +147,7 @@ procedure e_t1_0.action_run.limit();
 
 // Table e_t1_0
 procedure {:inline 1} e_t1_0.apply()
-	modifies hdr.ethernet.srcAddr;
+	modifies e_t1_0.action_run, hdr.ethernet.srcAddr;
 {
     hdr.ethernet.srcAddr := hdr.ethernet.srcAddr;
 
@@ -155,10 +155,12 @@ procedure {:inline 1} e_t1_0.apply()
     goto action_nop, action_NoAction_0, Exit;
 
     action_nop:
+    e_t1_0.action_run := e_t1_0.action.nop;
     call nop();
     goto Exit;
 
     action_NoAction_0:
+    e_t1_0.action_run := e_t1_0.action.NoAction_0;
     call NoAction_0();
     goto Exit;
 
@@ -174,7 +176,7 @@ procedure e_t1_0.apply_table_exit();
 
 // Control egress
 procedure {:inline 1} egress()
-	modifies hdr.ethernet.srcAddr;
+	modifies e_t1_0.action_run, hdr.ethernet.srcAddr;
 {
     call e_t1_0.apply();
 }
@@ -185,7 +187,7 @@ procedure i_t1_0.action_run.limit();
 
 // Table i_t1_0
 procedure {:inline 1} i_t1_0.apply()
-	modifies hdr.ethernet.dstAddr, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
+	modifies hdr.ethernet.dstAddr, i_t1_0.action_run, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
 {
     var set_egress_port.egress_port:bv8;
     var set_f3.f3:bv32;
@@ -197,30 +199,37 @@ procedure {:inline 1} i_t1_0.apply()
     goto action_nop_2, action_ing_drop, action_set_f1, action_set_f2, action_set_f3, action_set_egress_port, action_NoAction_1, Exit;
 
     action_nop_2:
+    i_t1_0.action_run := i_t1_0.action.nop_2;
     call nop_2();
     goto Exit;
 
     action_ing_drop:
+    i_t1_0.action_run := i_t1_0.action.ing_drop;
     call ing_drop();
     goto Exit;
 
     action_set_f1:
+    i_t1_0.action_run := i_t1_0.action.set_f1;
     call set_f1(set_f1.f1);
     goto Exit;
 
     action_set_f2:
+    i_t1_0.action_run := i_t1_0.action.set_f2;
     call set_f2(set_f2.f2);
     goto Exit;
 
     action_set_f3:
+    i_t1_0.action_run := i_t1_0.action.set_f3;
     call set_f3(set_f3.f3);
     goto Exit;
 
     action_set_egress_port:
+    i_t1_0.action_run := i_t1_0.action.set_egress_port;
     call set_egress_port(set_egress_port.egress_port);
     goto Exit;
 
     action_NoAction_1:
+    i_t1_0.action_run := i_t1_0.action.NoAction_1;
     call NoAction_1();
     goto Exit;
 
@@ -240,7 +249,7 @@ procedure i_t2_0.action_run.limit();
 
 // Table i_t2_0
 procedure {:inline 1} i_t2_0.apply()
-	modifies hdr.ethernet.dstAddr, meta.ing_metadata.f2;
+	modifies hdr.ethernet.dstAddr, i_t2_0.action_run, meta.ing_metadata.f2;
 {
     var set_f2_2.f2:bv16;
     hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
@@ -249,14 +258,17 @@ procedure {:inline 1} i_t2_0.apply()
     goto action_nop_5, action_set_f2_2, action_NoAction_6, Exit;
 
     action_nop_5:
+    i_t2_0.action_run := i_t2_0.action.nop_5;
     call nop_5();
     goto Exit;
 
     action_set_f2_2:
+    i_t2_0.action_run := i_t2_0.action.set_f2_2;
     call set_f2_2(set_f2_2.f2);
     goto Exit;
 
     action_NoAction_6:
+    i_t2_0.action_run := i_t2_0.action.NoAction_6;
     call NoAction_6();
     goto Exit;
 
@@ -276,7 +288,7 @@ procedure i_t3_0.action_run.limit();
 
 // Table i_t3_0
 procedure {:inline 1} i_t3_0.apply()
-	modifies hdr.ethernet.dstAddr, meta.ing_metadata.f3;
+	modifies hdr.ethernet.dstAddr, i_t3_0.action_run, meta.ing_metadata.f3;
 {
     var set_f3_2.f3:bv32;
     hdr.ethernet.dstAddr := hdr.ethernet.dstAddr;
@@ -285,14 +297,17 @@ procedure {:inline 1} i_t3_0.apply()
     goto action_nop_6, action_set_f3_2, action_NoAction_7, Exit;
 
     action_nop_6:
+    i_t3_0.action_run := i_t3_0.action.nop_6;
     call nop_6();
     goto Exit;
 
     action_set_f3_2:
+    i_t3_0.action_run := i_t3_0.action.set_f3_2;
     call set_f3_2(set_f3_2.f3);
     goto Exit;
 
     action_NoAction_7:
+    i_t3_0.action_run := i_t3_0.action.NoAction_7;
     call NoAction_7();
     goto Exit;
 
@@ -315,7 +330,7 @@ procedure {:inline 1} ing_drop()
 
 // Control ingress
 procedure {:inline 1} ingress()
-	modifies hdr.ethernet.dstAddr, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
+	modifies hdr.ethernet.dstAddr, i_t1_0.action_run, i_t2_0.action_run, i_t3_0.action_run, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
 {
     var set_egress_port.egress_port:bv8;
     var set_f3.f3:bv32;
@@ -326,6 +341,7 @@ procedure {:inline 1} ingress()
 
     Switch$i_t1_0$nop_2:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.nop_2;
         call nop_2();
         call i_t1_0.apply_table_exit();
         call i_t3_0.apply();
@@ -333,6 +349,7 @@ procedure {:inline 1} ingress()
 
     Switch$i_t1_0$set_egress_port:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.set_egress_port;
         call set_egress_port(set_egress_port.egress_port);
         call i_t1_0.apply_table_exit();
         call i_t3_0.apply();
@@ -340,30 +357,35 @@ procedure {:inline 1} ingress()
 
     Switch$i_t1_0$ing_drop:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.ing_drop;
         call ing_drop();
         call i_t1_0.apply_table_exit();
         goto Switch$i_t1_0$Continue;
 
     Switch$i_t1_0$set_f1:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.set_f1;
         call set_f1(set_f1.f1);
         call i_t1_0.apply_table_exit();
         goto Switch$i_t1_0$Continue;
 
     Switch$i_t1_0$set_f2:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.set_f2;
         call set_f2(set_f2.f2);
         call i_t1_0.apply_table_exit();
         goto Switch$i_t1_0$Continue;
 
     Switch$i_t1_0$set_f3:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.set_f3;
         call set_f3(set_f3.f3);
         call i_t1_0.apply_table_exit();
         goto Switch$i_t1_0$Continue;
 
     Switch$i_t1_0$NoAction_1:
         call i_t1_0.apply_table_entry();
+        i_t1_0.action_run := i_t1_0.action.NoAction_1;
         call NoAction_1();
         call i_t1_0.apply_table_exit();
         goto Switch$i_t1_0$Continue;
@@ -374,7 +396,7 @@ procedure init.stack.index();
     ensures (forall s:HeaderStack::stack.index[s]==0);
 	modifies stack.index;
 procedure {:inline 1} main()
-	modifies drop, hdr.ethernet.dstAddr, hdr.ethernet.srcAddr, isValid, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
+	modifies drop, e_t1_0.action_run, hdr.ethernet.dstAddr, hdr.ethernet.srcAddr, i_t1_0.action_run, i_t2_0.action_run, i_t3_0.action_run, isValid, meta.ing_metadata.drop, meta.ing_metadata.egress_port, meta.ing_metadata.f1, meta.ing_metadata.f2, meta.ing_metadata.f3;
 {
     call ParserImpl();
     call verifyChecksum();

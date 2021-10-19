@@ -593,7 +593,10 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
 
                                     // Table entry
                                     currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
-
+                                    // Specify action_run
+                                    currentProcedure->addStatement(getIndent()+tableName+
+                                        ".action_run := "+tableName+".action."+actionName+";\n");
+                                    currentProcedure->addModifiedGlobalVariables(tableName+".action_run");
                                     // Add Parameters
                                     cstring actionCall = "";
                                     actionCall += getIndent()+"call "+actionName+"(";
@@ -632,6 +635,10 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
 
                 // Table entry
                 currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
+                // Specify action_run
+                currentProcedure->addStatement(getIndent()+tableName+
+                    ".action_run := "+tableName+".action."+actionName+";\n");
+                currentProcedure->addModifiedGlobalVariables(tableName+".action_run");
 
                 // Add Parameters
                 cstring actionCall = "";
@@ -663,6 +670,9 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
         // Add continue label
         currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$Continue:\n");
     }
+
+    // TODO consider ordinary switch expression (value)
+    // testcase: testdata/p4_16_samples/switch-expression.p4
     currentProcedure->addStatement(res);
     return "";
 }
@@ -794,6 +804,7 @@ cstring Translator::translate(const IR::Member *member){
         return "setValid("+translate(member->expr)+")";
     if(member->member.toString()=="setInvalid")
         return "setInvalid("+translate(member->expr)+")";
+    // TODO: NoAction should not be considered
     if(member->member.toString()=="hit"){
         cstring expr = translate(member->expr);
         std::string s = expr.c_str();
@@ -1663,6 +1674,7 @@ void Translator::translate(const IR::P4Table *p4Table){
     addDeclaration("\n// Table "+name+" Actionlist Declaration\n");
     addDeclaration("type "+name+".action;\n");
     incIndent();
+    // Consider keys
     for(auto property:p4Table->properties->properties){
         if (auto key = property->value->to<IR::Key>()) {
             for(auto keyElement:key->keyElements){
@@ -1699,7 +1711,6 @@ void Translator::translate(const IR::P4Table *p4Table){
                     }
                 }
             }
-            // add action call statements
             int cnt = actionList->actionList.size();
 
             for(auto actionElement:actionList->actionList){
@@ -1730,6 +1741,9 @@ void Translator::translate(const IR::P4Table *p4Table){
                         // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
                             // +actionName+");\n");
                     }
+                    table.addStatement(getIndent()+name+".action_run := "+
+                        name+".action."+actionName+";\n");
+                    table.addModifiedGlobalVariables(name+".action_run");
                     const IR::P4Action* action = actions[actionName];
                     table.addStatement(getIndent()+"call "+actionName+"(");
                     table.addSucc(actionName);
