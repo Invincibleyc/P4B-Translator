@@ -1,3 +1,94 @@
+# P4B-Translator
+
+P4B-Translator is the translator from P4 to Boogie IVL. It is developed based on p4c, the P4 reference compiler.
+
+TODO:
+
+> 1) Table static entries (specified by keyword **entries**)
+>
+> 2) Table hit (keyword **hit**)
+>
+> - Consider default action
+>
+> 3) Recirculation & Resubmit & mirror
+>
+> 4) Ask for benchmarks from Aquila
+>
+> 5) Package
+>
+> 6) Control instance (Maybe checked by p4c)
+>
+> 7) annotations (annotations.p4)
+>
+> - tableOnly
+> - defaultOnly
+> - name
+> - max_group_size
+> - size
+> - cycles
+> - annotest
+> - p4runtime (**custom-type-restricted-fields.p4**)
+>
+> 8) action/control local variables (action_call_table_ebpf.p4)
+>
+> 9) exit/return (action_call_ubpf.p4)
+>
+> 10) standard_metadata
+>
+> - output_action (action_fwd_ubpf.p4)
+>
+> 11) action default parameters (action_param)
+>
+> 12) action_profile
+>
+> 13) action_selector
+>
+> 14) hash Algorithm
+>
+> 15) parser **packet_in.advance**
+>
+> 16) struct (**alias.p4**)
+>
+> 17) typedef
+>
+> 18) template (**arch1.p4**)
+>
+> 19) int & bit (**arith5-bmv2.p4**)
+>
+> 20) const default_action??? (**arith5-bmv2.p4**)
+>
+> 21) header assign(initialization) (**assign.p4**)
+>
+> 22) extern (**bfd_offload.p4**)
+>
+> 23) digest (**bitwise-and.p4**)
+>
+> 24) cast (**bool_cast.p4**)
+>
+> 25) header_union
+>
+> 26) extract with 2 parameters (**checksum1-bmv2.p4**)
+>
+> 27) user-defined error (**checksum1-bmv2.p4**)
+>
+> 28) tuple
+>
+> 29) undefined function (**complex6.p4**)
+>
+> 30) counter
+>
+> 31) register
+>
+> 32) complex parser (direct-call2.p4)
+>
+> 33) enum (**enum-bmv2.p4**)
+>
+> 34)
+
+function.p4
+
+
+
 [![Build Status](https://travis-ci.com/p4lang/p4c.svg?branch=master)](https://travis-ci.com/p4lang/p4c)
 
 # p4c
@@ -123,8 +214,8 @@ dot -Tpdf ParserImpl.dot > ParserImpl.pdf
     The cmake command takes the following optional arguments to
     further customize the build:
      - `-DCMAKE_BUILD_TYPE=RELEASE|DEBUG` -- set CMAKE_BUILD_TYPE to
-      RELEASE or DEBUG to build with optimizations or with debug
-      symbols to run in gdb. Default is RELEASE.
+        RELEASE or DEBUG to build with optimizations or with debug
+        symbols to run in gdb. Default is RELEASE.
      - `-DCMAKE_INSTALL_PREFIX=<path>` -- set the directory where
        `make install` installs the compiler. Defaults to /usr/local.
      - `-DENABLE_BMV2=ON|OFF`. Enable the bmv2 backend. Default ON.
