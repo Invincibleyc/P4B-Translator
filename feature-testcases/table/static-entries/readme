@@ -1,0 +1,6 @@
+P4 may define static entries (const entries, cannot be changed by the control plane).
+Ignoring these entries may trigger false positives. bf4 doesn't support this feature.
+
+bf4-fail.p4 is designed to check the processing of static entries:
+- if not considered, a bug should be reported (x)
+- if considered, the bug is eliminated (√)

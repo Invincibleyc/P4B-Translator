@@ -1,12 +1,15 @@
 #ifndef BACKENDS_VERIFY_TRANSLATE_TRANSLATE_H_
 #define BACKENDS_VERIFY_TRANSLATE_TRANSLATE_H_
 
+#include <typeinfo>
 #include <fstream>
 #include <map>
 #include <queue>
 #include "ir/ir.h"
 #include "boogie_procedure.h"
 #include "boogie_statement.h"
+#include "backends/verify/translate/options.h"
+
 
 class Translator{
 private:
@@ -21,19 +24,25 @@ private:
 	std::map<cstring, const IR::Type_Struct*> structs;
 	std::map<cstring, const IR::P4Action*> actions;
 	std::map<cstring, const IR::P4Table*> tables;
+	std::vector<const IR::Declaration_Instance*> instances;
 	std::set<cstring> stacks;
 	std::set<cstring> functions;
 	std::map<cstring, std::vector<cstring>> pred;
 	std::set<cstring> globalVariables;
 	BoogieProcedure* currentProcedure=nullptr;
 	cstring deparser=nullptr;
+	// options
+	P4VerifyOptions& options;
 	// assertion
 	bool addAssertions = false;
+	int switchStatementCount = 0;
 
 public:
-	Translator(std::ostream &out);
+	Translator(std::ostream &out, P4VerifyOptions &options);
 	void writeToFile();
 	cstring toString();
+	cstring toString(int val);
+	cstring toString(const big_int&);
 	void addNecessaryProcedures();
 	void addProcedure(BoogieProcedure procedure);
 	void addDeclaration(cstring decl);
@@ -43,6 +52,9 @@ public:
 	void incIndent();
 	void decIndent();
 	cstring getIndent();
+	void incSwitchStatementCount();
+	cstring getSwitchStatementCount();
+
 	void addGlobalVariables(cstring variable);
 	bool isGlobalVariable(cstring variable);
 	void updateModifiedVariables(cstring variable);

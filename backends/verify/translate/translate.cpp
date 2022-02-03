@@ -1,7 +1,7 @@
 #include "translate.h"
 #include <sstream>
 
-Translator::Translator(std::ostream &out) : out(out){
+Translator::Translator(std::ostream &out, P4VerifyOptions &options) : out(out), options(options){
     // init main procedure
     cstring mainProcedureDeclaration;
     mainProcedure = BoogieProcedure("mainProcedure");
@@ -49,6 +49,7 @@ Translator::Translator(std::ostream &out) : out(out){
     headers = std::map<cstring, const IR::Type_Header*>();
     structs = std::map<cstring, const IR::Type_Struct*>();
     tables = std::map<cstring, const IR::P4Table*>();
+    instances = std::vector<const IR::Declaration_Instance*>();
     // globalVariables = std::set<cstring>();
 
     addNecessaryProcedures();
@@ -174,6 +175,9 @@ void Translator::analyzeProgram(const IR::P4Program *program){
                 }
             }
         }
+        else if (auto instance = obj->to<IR::Declaration_Instance>()){
+            instances.push_back(instance);
+        }
     }
 }
 
@@ -187,6 +191,13 @@ cstring Translator::getIndent(){
     cstring res("");
     for(int i = 0; i < indent; i++) res += "    ";
     return res;
+}
+
+void Translator::incSwitchStatementCount(){ switchStatementCount++; }
+cstring Translator::getSwitchStatementCount(){
+    std::stringstream ss;
+    ss << switchStatementCount;
+    return ss.str();
 }
 
 void Translator::addGlobalVariables(cstring variable){
@@ -265,6 +276,18 @@ void Translator::writeToFile(){
             out << iter->second.toString();
         }
     }
+}
+
+cstring Translator::toString(int val){
+    std::stringstream ss;
+    ss << val;
+    return ss.str();
+}
+
+cstring Translator::toString(const big_int& val){
+    std::stringstream ss;
+    ss << val;
+    return ss.str();
 }
 
 void Translator::translate(const IR::Node *node){
@@ -461,10 +484,16 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         return getIndent()+"// count\n";
     }
     else if(expr.find(".write") != nullptr){
-        return getIndent()+"// write\n";
+        currentProcedure->addStatement(getIndent()+"// write\n");
+        cstring expr2 = translate(methodCallStatement->methodCall);
+        currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
+        return "";
     }
     else if(expr.find(".read") != nullptr){
-        return getIndent()+"// read\n";
+        currentProcedure->addStatement(getIndent()+"// read\n");
+        cstring expr2 = translate(methodCallStatement->methodCall);
+        currentProcedure->addStatement(getIndent()+expr2+";\n");
+        return "";
     }
     else if(expr.find("random") != nullptr){
         return getIndent()+"// random\n";
@@ -496,6 +525,9 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
     cstring res = "";
     cstring expr = translate(switchStatement->expression);
     if(auto actionEnum = switchStatement->expression->type->to<IR::Type_ActionEnum>()){
+        incSwitchStatementCount();
+        cstring switchLabel = "Switch$"+getSwitchStatementCount()+"$";
+
         cstring tableName;
         std::string s = expr.c_str();
         std::string::size_type idx = s.find(".apply()");
@@ -524,14 +556,18 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                         cstring actionName = translate(actionCallExpr->method);
                         const IR::P4Action* action = actions[actionName];
                         for(auto parameter:action->parameters->parameters){
-                            currentProcedure->addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                            cstring parameter_str = actionName+"."+translate(parameter);
+                            if(!currentProcedure->hasLocalVariables(parameter_str)){
+                                currentProcedure->addFrontStatement("    var "+parameter_str+";\n");
+                                currentProcedure->addLocalVariables(parameter_str);
+                            }
                         }
                         // goto statement
                         if(!firstAction)
                             gotoStmt += ", ";
                         else
                             firstAction = false;
-                        gotoStmt += "Switch$"+tableName+"$"+actionName;
+                        gotoStmt += switchLabel+tableName+"$"+actionName;
                     }
                 }
             }
@@ -587,15 +623,18 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                                     const IR::P4Action* action = actions[actionName];
 
                                     // Add label for actions
-                                    currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$"+actionName+":\n");
+                                    currentProcedure->addStatement("\n"+getIndent()+switchLabel
+                                        +tableName+"$"+actionName+":\n");
 
                                     incIndent();
 
                                     // Table entry
                                     currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
                                     // Specify action_run
-                                    currentProcedure->addStatement(getIndent()+tableName+
-                                        ".action_run := "+tableName+".action."+actionName+";\n");
+                                    currentProcedure->addStatement(getIndent()+"assume "+tableName+
+                                        ".action_run == "+tableName+".action."+actionName+";\n");
+                                    // currentProcedure->addStatement(getIndent()+tableName+
+                                    //     ".action_run := "+tableName+".action."+actionName+";\n");
                                     currentProcedure->addModifiedGlobalVariables(tableName+".action_run");
                                     // Add Parameters
                                     cstring actionCall = "";
@@ -616,7 +655,8 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                                     currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
                                     if(fallThrough < switchStatement->cases.size())
                                         translate(switchStatement->cases[fallThrough]->statement);
-                                    currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
+                                    currentProcedure->addStatement(getIndent()+"goto "+switchLabel
+                                        +tableName+"$Continue;\n");
                                     decIndent();
                                 }
                             }
@@ -629,15 +669,16 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                 const IR::P4Action* action = actions[actionName];
 
                 // Add label for actions
-                currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$"+actionName+":\n");
+                currentProcedure->addStatement("\n"+getIndent()+switchLabel
+                    +tableName+"$"+actionName+":\n");
 
                 incIndent();
 
                 // Table entry
                 currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
                 // Specify action_run
-                currentProcedure->addStatement(getIndent()+tableName+
-                    ".action_run := "+tableName+".action."+actionName+";\n");
+                currentProcedure->addStatement(getIndent()+"assume "+tableName+
+                                        ".action_run == "+".action."+actionName+";\n");
                 currentProcedure->addModifiedGlobalVariables(tableName+".action_run");
 
                 // Add Parameters
@@ -662,13 +703,15 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                 if(fallThrough < switchStatement->cases.size())
                     translate(switchStatement->cases[fallThrough]->statement);
 
-                currentProcedure->addStatement(getIndent()+"goto Switch$"+tableName+"$Continue;\n");
+                currentProcedure->addStatement(getIndent()+"goto "+switchLabel
+                    +tableName+"$Continue;\n");
                 decIndent();
             }
         }
 
         // Add continue label
-        currentProcedure->addStatement("\n"+getIndent()+"Switch$"+tableName+"$Continue:\n");
+        currentProcedure->addStatement("\n"+getIndent()+switchLabel
+            +tableName+"$Continue:\n");
     }
 
     // TODO consider ordinary switch expression (value)
@@ -727,17 +770,29 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         return "mark_to_drop()";
     }
 
+    // Register read (BMV2)
+    if(method.find(".read")){
+        std::string::size_type idx = ((std::string)method.c_str()).find(".read");
+        cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
+        currentProcedure->addModifiedGlobalVariables(arg0);
+        cstring arg1 = translate((*methodCallExpression->arguments)[1]);  // index
+        res += arg0 + " := " + method + "(";
+        cstring reg = ((std::string)method.c_str()).substr(0, idx);  // register
+        res += reg + ", " + arg1 + ")";
+        return res;
+    }
+
     std::string s = method.c_str();
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
         int i = idx;
-        if(addAssertions){
+        if(options.addAssertion){
             cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
             while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
                 currentProcedure->removeLastStatement();
             }
         }
-        if(addAssertions){
+        if(options.addAssertion){
             cstring assertStmt = "assert(false);";
             while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
                 currentProcedure->removeLastStatement();
@@ -752,7 +807,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     //     std::cout << "find... " << s.find("isValid") << std::endl;
     // }
     if(method.find("setValid(") != nullptr || method.find("setInvalid(")){
-        if(addAssertions){
+        if(options.addAssertion){
             if(currentProcedure->lastStatement().find("assert(")!= nullptr){
                 currentProcedure->removeLastStatement();
             }
@@ -828,7 +883,7 @@ cstring Translator::translate(const IR::Member *member){
     if(auto typeHeader = member->type->to<IR::Type_Header>()){
         cstring hdr = translate(member->expr)+"."+member->member.toString();
         cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
-        if(addAssertions){
+        if(options.addAssertion){
             if(currentProcedure->lastStatement() == "" || 
                 (currentProcedure->lastStatement() != stmt 
                     && stmt.find(currentProcedure->lastStatement()) == nullptr)){
@@ -842,9 +897,9 @@ cstring Translator::translate(const IR::Member *member){
                 // std::cout << currentProcedure->lastStatement() << std::endl;
             }
         }
-        if(addAssertions){
+        if(options.addAssertion){
             cstring stmt = getIndent()+"assert(false);\n";
-            if(addAssertions && currentProcedure->lastStatement() == "" || 
+            if(options.addAssertion && currentProcedure->lastStatement() == "" || 
                 (currentProcedure->lastStatement() != stmt 
                     && stmt.find(currentProcedure->lastStatement()) == nullptr)){
                 currentProcedure->addStatement(stmt);
@@ -880,8 +935,9 @@ cstring Translator::translate(const IR::Declaration *decl){
 cstring Translator::translate(const IR::Declaration_Variable *declVar){
     cstring res = "";
     if(declVar->initializer == nullptr){
-        if(currentProcedure != nullptr)
+        if(currentProcedure != nullptr){
             currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+        }
         else
             res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
     }
@@ -1166,8 +1222,11 @@ cstring Translator::translate(const IR::Type *type){
 }
 
 cstring Translator::translate(const IR::Type_Bits *typeBits){
+    // std::cout << "here" << std::endl;
     std::stringstream ss;
     ss << "bv" << typeBits->size;
+    // std::cout << "Type_Bits" << std::endl;
+    // std::cout << ss.str() << std::endl;
     return ss.str();
 }
 
@@ -1362,6 +1421,7 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
 
 void Translator::translate(const IR::P4Program *program){
     analyzeProgram(program);
+    
     // std::cout << "translate P4Program" << std::endl;
     // Add main program
 
@@ -1390,6 +1450,19 @@ void Translator::translate(const IR::Declaration_Instance *instance){
         BoogieProcedure main = BoogieProcedure(name);
         main.addDeclaration("procedure {:inline 1} "+name+"()\n");
         incIndent();
+
+        if(options.whileLoop) {
+            if(options.addInvariant){
+                main.addStatement(getIndent()+"while (true)\n");
+                main.addStatement(getIndent()+"invariant(true);\n");
+                // need to specify the variable set for invariant
+                main.addStatement(getIndent()+"{\n");
+            }else{
+                main.addStatement(getIndent()+"while (true){\n");
+            }
+            incIndent();
+        }
+
         int cnt = instance->arguments->size();
         for(auto argument:*instance->arguments){
             cnt--;
@@ -1402,12 +1475,74 @@ void Translator::translate(const IR::Declaration_Instance *instance){
             else
                 deparser = translate(argument->expression);
         }
+        if(options.whileLoop) {
+            decIndent();
+            main.addStatement(getIndent()+"}\n");
+        }
         decIndent();
+
         // add children
         addProcedure(main);
         mainProcedure.addStatement("    call "+name+"();\n");
         mainProcedure.addSucc(name);
         addPred(name, mainProcedure.getName());
+    }
+    if(typeName=="register"){
+        // size
+        auto constant = (*instance->arguments)[0]->expression->to<IR::Constant>();
+        cstring size = toString(constant->value);
+
+        // value type
+        auto valueType = instance->type->to<IR::Type_Specialized>();
+        cstring valueTypeName = translate((*valueType->arguments)[0]);
+
+        // size
+        cstring sizeTypeName = translate((*valueType->arguments)[1]);
+
+        // Consider the register as a set of variables (e.g., reg1, reg2, ...)
+        // TODO: rename register
+        // addDeclaration("\n// Register "+name+"\n");
+        // for(int i = 0; i < constant->value; i++){
+            // addDeclaration(name+toString(i)+":"+valueTypeName+";\n");
+        // }
+
+        addDeclaration("\n// Register "+name+"\n");
+        addDeclaration("var "+name+":["+sizeTypeName+"]"+valueTypeName+";\n");
+        addDeclaration("const "+name+".size:"+sizeTypeName+";\n");
+        addDeclaration("axiom "+name+".size == "+size+sizeTypeName+";\n");
+        addGlobalVariables(name);
+        // std::cout << typeName << " " << name << " " << size << " " << 
+        //     valueTypeName << std::endl;
+
+
+        /* read and write functions */
+        // read function
+        BoogieProcedure read = BoogieProcedure(name+".read");
+        // one parameter, return reg[index]
+        read.addDeclaration("function "+read.getName()+"(reg:["+sizeTypeName+"]"+valueTypeName
+            +", index:"+sizeTypeName+")"+"returns ("+valueTypeName+") {reg[index]}\n");
+        addProcedure(read);
+
+        // write function
+        BoogieProcedure write = BoogieProcedure(name+".write");
+        // two parameters, reg[index] := value
+        write.addDeclaration("procedure {:inline 1} "+write.getName()+"(index:"+sizeTypeName+", value:"
+            +valueTypeName+")\n");
+        incIndent();
+        write.addStatement(getIndent()+name+"[index] := value;\n");
+        decIndent();
+        write.addModifiedGlobalVariables(name);
+        addProcedure(write);
+
+
+        // Register initialization
+        cstring registerInitName = name+".init";
+        BoogieProcedure registerInit = BoogieProcedure(registerInitName);
+        registerInit.addDeclaration("procedure {:inline 1} "+registerInitName+"();\n");
+        registerInit.addDeclaration("    ensures(forall idx:"+sizeTypeName+":: "+name+"[idx]==0"+valueTypeName+");\n");
+        addProcedure(registerInit);
+        mainProcedure.addFrontStatement("    call "+registerInitName+"();\n");
+        addPred(registerInitName, mainProcedure.getName());
     }
 }
 
@@ -1613,18 +1748,22 @@ void Translator::translate(const IR::P4Control *p4Control){
     cstring controlName = p4Control->name.toString();
     BoogieProcedure control = BoogieProcedure(controlName);
     control.setImplemented();
-    currentProcedure = &control;
-    control.addDeclaration("\n// Control "+controlName+"\n");
-    control.addDeclaration("procedure {:inline 1} "+controlName+"()\n");
-    incIndent();
-    for(auto statOrDecl:p4Control->body->components){
-        control.addStatement(translate(statOrDecl));
-    }
-    decIndent();
     addProcedure(control);
+
+    currentProcedure = &procedures[controlName];
+
     for(auto controlLocal:p4Control->controlLocals){
+        currentProcedure = &procedures[controlName];
         translate(controlLocal);
     }
+    
+    currentProcedure->addDeclaration("\n// Control "+controlName+"\n");
+    currentProcedure->addDeclaration("procedure {:inline 1} "+controlName+"()\n");
+    incIndent();
+    for(auto statOrDecl:p4Control->body->components){
+        currentProcedure->addStatement(translate(statOrDecl));
+    }
+    decIndent();
 }
 
 void Translator::translate(const IR::Method *method){
@@ -1712,24 +1851,33 @@ void Translator::translate(const IR::P4Table *p4Table){
                 }
             }
             int cnt = actionList->actionList.size();
-
+            bool firstAction = true;
             for(auto actionElement:actionList->actionList){
                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                    // NoAction should not be considered
+                    cnt--;
+                    if(cnt == 0)
+                        break;
+
                     cstring actionName = translate(actionCallExpr->method);
-                    gotoStmt += "action_"; gotoStmt += actionName; gotoStmt += ", ";
+                    if(!firstAction) gotoStmt += ", ";
+                    else firstAction = false;
+                    gotoStmt += "action_"; gotoStmt += actionName;
                 }
             }
-            gotoStmt += "Exit;\n";
+            gotoStmt += ";\n";
             table.addStatement(gotoStmt);
 
-
+            cnt = actionList->actionList.size();
             for(auto actionElement:actionList->actionList){
                 // if(actionList->actionList.size()!=1){
                 //     table.addStatement(getIndent()+"assume(");
                 // }
+                
+                // NoAction should not be considered
                 cnt--;
-                // if(cnt == 0)
-                //     break;
+                if(cnt == 0)
+                    break;
                 if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                     cstring actionName = translate(actionCallExpr->method);
 
@@ -1741,7 +1889,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                         // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
                             // +actionName+");\n");
                     }
-                    table.addStatement(getIndent()+name+".action_run := "+
+                    table.addStatement(getIndent()+"assume "+name+".action_run == "+
                         name+".action."+actionName+";\n");
                     table.addModifiedGlobalVariables(name+".action_run");
                     const IR::P4Action* action = actions[actionName];
@@ -1956,12 +2104,15 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
     int cnt = actionList->actionList.size();
     for(auto actionElement:actionList->actionList){
         cnt--;
+        // NoAction should not be considered
+        if(cnt == 0) break;
         if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
             cstring actionName = translate(actionCallExpr->method);
             addDeclaration("const unique "+arg+"."+actionName+" : "+arg+";\n");
             limit.addDeclaration(arg+"_run=="+arg+"."+actionName);
         }
-        if(cnt > 0){
+        // NoAction should not be considered
+        if(cnt > 1){
             limit.addDeclaration(" || ");
         }
     }

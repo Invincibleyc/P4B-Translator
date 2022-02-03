@@ -1,0 +1,567 @@
+Boogie program verifier version 2.4.1.10503, Copyright (c) 2003-2014, Microsoft.
+inline starts.
+Inlining...
+inline finished.
+remove 29 commands
+block anon0
+  call t_exact_0.action_run.limit();
+  call clear_forward();
+  call clear_drop();
+  call clear_valid();
+  call clear_emit();
+  call init.stack.index();
+  call packet_in.extract(hdr.ethernet);
+  hdr.ethernet.e := 1bv8;
+  meta.trap := true;
+  havoc inline$t_exact_0.apply$0$a_with_control_params.x;
+  hdr.ethernet.e := hdr.ethernet.e;
+  call t_exact_0.apply_table_entry();
+  goto inline$t_exact_0.apply$0$anon4_Then, inline$t_exact_0.apply$0$anon4_Else;
+
+block inline$t_exact_0.apply$0$anon4_Else
+  assume {:partition} hdr.ethernet.e != 1bv8;
+  goto inline$t_exact_0.apply$0$action_a, inline$t_exact_0.apply$0$action_a_with_control_params, inline$t_exact_0.apply$0$Exit;
+  $Predecessor::anon0
+
+block inline$t_exact_0.apply$0$Exit
+  assert meta.trap <==> false;
+  call t_exact_0.apply_table_exit();
+  goto inline$ingress$0$anon2_Then, inline$ingress$0$anon2_Else;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+  $Predecessor::inline$a_with_control_params$0$Return
+  $Predecessor::inline$t_exact_0.apply$0$action_a
+  $Predecessor::inline$a_with_control_params$1$Return
+
+block inline$t_exact_0.apply$0$action_a_with_control_params
+  t_exact_0.action_run := t_exact_0.action.a_with_control_params;
+  inline$a_with_control_params$0$x := inline$t_exact_0.apply$0$a_with_control_params.x;
+  standard_metadata.egress_spec := inline$a_with_control_params$0$x;
+  forward := true;
+  goto inline$a_with_control_params$0$anon3_Then, inline$a_with_control_params$0$anon3_Else;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+
+block inline$a_with_control_params$0$anon3_Else
+  assume {:partition} !(hdr.ethernet.e == 1bv8 && inline$a_with_control_params$0$x == 1bv9);
+  meta.trap := true;
+  goto inline$a_with_control_params$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$action_a_with_control_params
+
+block inline$a_with_control_params$0$anon3_Then
+  assume {:partition} hdr.ethernet.e == 1bv8 && inline$a_with_control_params$0$x == 1bv9;
+  meta.trap := false;
+  goto inline$a_with_control_params$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$action_a_with_control_params
+
+block inline$a_with_control_params$0$Return
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$a_with_control_params$0$anon3_Else
+  $Predecessor::inline$a_with_control_params$0$anon3_Then
+
+block inline$t_exact_0.apply$0$action_a
+  t_exact_0.action_run := t_exact_0.action.a;
+  standard_metadata.egress_spec := 0bv9;
+  forward := true;
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+
+block inline$t_exact_0.apply$0$anon4_Then
+  assume {:partition} hdr.ethernet.e == 1bv8;
+  inline$a_with_control_params$1$x := 1bv9;
+  standard_metadata.egress_spec := inline$a_with_control_params$1$x;
+  forward := true;
+  goto inline$a_with_control_params$1$anon3_Then, inline$a_with_control_params$1$anon3_Else;
+  $Predecessor::anon0
+
+block inline$a_with_control_params$1$anon3_Else
+  assume {:partition} !(hdr.ethernet.e == 1bv8 && inline$a_with_control_params$1$x == 1bv9);
+  meta.trap := true;
+  goto inline$a_with_control_params$1$Return;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Then
+
+block inline$a_with_control_params$1$anon3_Then
+  assume {:partition} hdr.ethernet.e == 1bv8 && inline$a_with_control_params$1$x == 1bv9;
+  meta.trap := false;
+  goto inline$a_with_control_params$1$Return;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Then
+
+block inline$a_with_control_params$1$Return
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$a_with_control_params$1$anon3_Else
+  $Predecessor::inline$a_with_control_params$1$anon3_Then
+
+block inline$ingress$0$anon2_Else
+  assume {:partition} !meta.trap;
+  goto inline$ingress$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$Exit
+
+block inline$ingress$0$anon2_Then
+  assume {:partition} meta.trap;
+  assert false;
+  hdr.trap.trap := add.bv8(hdr.trap.trap, 1bv8);
+  goto inline$ingress$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$Exit
+
+block inline$ingress$0$Return
+  return;
+  $Predecessor::inline$ingress$0$anon2_Else
+  $Predecessor::inline$ingress$0$anon2_Then
+
+    BlockCnt: 15
+initial cfg
+ConvertCFG2DAG
+ConvertCFG2DAG Finished
+0
+block number: 16
+!!!TopologicalSort Starts!!!
+!!!TopologicalSort Ends!!!
+Add fixup command: assume meta.trap#AT#0 == true;
+
+Add fixup command: assume meta.trap#AT#0 == false;
+
+Add fixup command: assume meta.trap#AT#1 == true;
+
+Add fixup command: assume meta.trap#AT#1 == false;
+
+Add fixup command: assume meta.trap#AT#2 == true;
+
+Add fixup command: assume meta.trap#AT#2 == meta.trap#AT#0;
+
+Add fixup command: assume meta.trap#AT#2 == true;
+
+Add fixup command: assume meta.trap#AT#2 == meta.trap#AT#1;
+
+Add fixup command: assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+
+Add fixup command: assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+
+Add fixup command: assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+
+Add fixup command: assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+
+Add fixup command: assume forward#AT#1 == forward#AT#0;
+
+Add fixup command: assume forward#AT#1 == true;
+
+Add fixup command: assume forward#AT#1 == true;
+
+Add fixup command: assume forward#AT#1 == true;
+
+Add fixup command: assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+Add fixup command: assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+
+Add fixup command: assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+Add fixup command: assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+Add fixup command: assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+
+Add fixup command: assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+
+Add fixup command: assume standard_metadata.egress_spec#AT#0 == 0bv9;
+
+Add fixup command: assume standard_metadata.egress_spec#AT#0 == 1bv9;
+
+Add fixup command: assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+Add fixup command: assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+Add fixup command: assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+Add fixup command: assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+
+block 0
+  goto anon0;
+
+block anon0
+  assume t_exact_0.action_run#AT#0 == t_exact_0.action.a || t_exact_0.action_run#AT#0 == t_exact_0.action.a_with_control_params;
+  assume forward#AT#0 <==> false;
+  assume drop#AT#0 <==> false;
+  assume (forall header: Ref :: isValid#AT#0[header] <==> false);
+  assume (forall header: Ref :: emit#AT#0[header] <==> false);
+  assume (forall s: HeaderStack :: stack.index#AT#0[s] == 0);
+  assume isValid#AT#1[hdr.ethernet] <==> true;
+  goto inline$t_exact_0.apply$0$anon4_Then, inline$t_exact_0.apply$0$anon4_Else;
+  $Predecessor::0
+
+block inline$t_exact_0.apply$0$anon4_Else
+  assume {:partition} 1bv8 != 1bv8;
+  assume meta.trap#AT#2 == true;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+  assume forward#AT#1 == forward#AT#0;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  goto inline$t_exact_0.apply$0$action_a, inline$t_exact_0.apply$0$action_a_with_control_params, inline$t_exact_0.apply$0$Exit;
+  $Predecessor::anon0
+
+block inline$t_exact_0.apply$0$Exit
+  assert meta.trap#AT#2 <==> false;
+  goto inline$ingress$0$anon2_Then, inline$ingress$0$anon2_Else;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+  $Predecessor::inline$a_with_control_params$0$Return
+  $Predecessor::inline$t_exact_0.apply$0$action_a
+  $Predecessor::inline$a_with_control_params$1$Return
+
+block inline$ingress$0$anon2_Else
+  assume {:partition} !meta.trap#AT#2;
+  goto inline$ingress$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$Exit
+
+block inline$ingress$0$Return
+  return;
+  $Predecessor::inline$ingress$0$anon2_Else
+
+block inline$ingress$0$anon2_Then
+  assume {:partition} meta.trap#AT#2;
+  assert false;
+  assume hdr.trap.trap#AT#0 == add.bv8(hdr.trap.trap, 1bv8);
+  return;
+  $Predecessor::inline$t_exact_0.apply$0$Exit
+
+block inline$t_exact_0.apply$0$action_a_with_control_params
+  goto inline$a_with_control_params$0$anon3_Then, inline$a_with_control_params$0$anon3_Else;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+
+block inline$a_with_control_params$0$anon3_Else
+  assume {:partition} !(1bv8 == 1bv8 && inline$t_exact_0.apply$0$a_with_control_params.x#AT#0 == 1bv9);
+  assume meta.trap#AT#0 == true;
+  goto inline$a_with_control_params$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$action_a_with_control_params
+
+block inline$a_with_control_params$0$Return
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+  assume forward#AT#1 == true;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$a_with_control_params$0$anon3_Else
+  $Predecessor::inline$a_with_control_params$0$anon3_Then
+
+block inline$a_with_control_params$0$anon3_Then
+  assume {:partition} 1bv8 == 1bv8 && inline$t_exact_0.apply$0$a_with_control_params.x#AT#0 == 1bv9;
+  assume meta.trap#AT#0 == false;
+  goto inline$a_with_control_params$0$Return;
+  $Predecessor::inline$t_exact_0.apply$0$action_a_with_control_params
+
+block inline$t_exact_0.apply$0$action_a
+  assume meta.trap#AT#2 == true;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+  assume forward#AT#1 == true;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Else
+
+block inline$t_exact_0.apply$0$anon4_Then
+  assume {:partition} 1bv8 == 1bv8;
+  goto inline$a_with_control_params$1$anon3_Then, inline$a_with_control_params$1$anon3_Else;
+  $Predecessor::anon0
+
+block inline$a_with_control_params$1$anon3_Else
+  assume {:partition} !(1bv8 == 1bv8 && 1bv9 == 1bv9);
+  assume meta.trap#AT#1 == true;
+  goto inline$a_with_control_params$1$Return;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Then
+
+block inline$a_with_control_params$1$Return
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+  assume forward#AT#1 == true;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  goto inline$t_exact_0.apply$0$Exit;
+  $Predecessor::inline$a_with_control_params$1$anon3_Else
+  $Predecessor::inline$a_with_control_params$1$anon3_Then
+
+block inline$a_with_control_params$1$anon3_Then
+  assume {:partition} 1bv8 == 1bv8 && 1bv9 == 1bv9;
+  assume meta.trap#AT#1 == false;
+  goto inline$a_with_control_params$1$Return;
+  $Predecessor::inline$t_exact_0.apply$0$anon4_Then
+
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume forward#AT#1 == forward#AT#0;
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+notFixupCmd:
+  assume {:partition} 1bv8 != 1bv8;
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+isFixupCmd assume meta.trap#AT#2 == true;
+
+notFixupCmd:
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+  assume meta.trap#AT#2 == true;
+isFixupCmd assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+
+notFixupCmd:
+  assume forward#AT#1 == forward#AT#0;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume forward#AT#1 == forward#AT#0;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+isFixupCmd assume forward#AT#1 == forward#AT#0;
+
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume forward#AT#1 == forward#AT#0;
+isFixupCmd assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+  assume forward#AT#1 == forward#AT#0;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+isFixupCmd assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume forward#AT#1 == forward#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume standard_metadata.egress_spec#AT#0 == standard_metadata.egress_spec;
+isFixupCmd assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+notFixupCmd:
+  assume {:partition} !(1bv8 == 1bv8 && inline$t_exact_0.apply$0$a_with_control_params.x#AT#0 == 1bv9);
+  assume meta.trap#AT#0 == true;
+isFixupCmd assume meta.trap#AT#0 == true;
+
+isFixupCmd assume meta.trap#AT#2 == meta.trap#AT#0;
+
+notFixupCmd:
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+isFixupCmd assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+isFixupCmd assume forward#AT#1 == true;
+
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume forward#AT#1 == true;
+isFixupCmd assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+isFixupCmd assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume meta.trap#AT#2 == meta.trap#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a_with_control_params;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume standard_metadata.egress_spec#AT#0 == inline$t_exact_0.apply$0$a_with_control_params.x#AT#0;
+isFixupCmd assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+notFixupCmd:
+  assume {:partition} 1bv8 == 1bv8 && inline$t_exact_0.apply$0$a_with_control_params.x#AT#0 == 1bv9;
+  assume meta.trap#AT#0 == false;
+isFixupCmd assume meta.trap#AT#0 == false;
+
+isFixupCmd assume meta.trap#AT#2 == true;
+
+notFixupCmd:
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+  assume meta.trap#AT#2 == true;
+isFixupCmd assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+isFixupCmd assume forward#AT#1 == true;
+
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume forward#AT#1 == true;
+isFixupCmd assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+isFixupCmd assume standard_metadata.egress_spec#AT#0 == 0bv9;
+
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume meta.trap#AT#2 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action.a;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+  assume standard_metadata.egress_spec#AT#0 == 0bv9;
+isFixupCmd assume inline$a_with_control_params$1$x#AT#0 == inline$a_with_control_params$1$x;
+
+notFixupCmd:
+  assume {:partition} !(1bv8 == 1bv8 && 1bv9 == 1bv9);
+  assume meta.trap#AT#1 == true;
+isFixupCmd assume meta.trap#AT#1 == true;
+
+isFixupCmd assume meta.trap#AT#2 == meta.trap#AT#1;
+
+notFixupCmd:
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+isFixupCmd assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+notFixupCmd:
+  assume forward#AT#1 == true;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+isFixupCmd assume forward#AT#1 == true;
+
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+  assume forward#AT#1 == true;
+isFixupCmd assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+isFixupCmd assume standard_metadata.egress_spec#AT#0 == 1bv9;
+
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  assume meta.trap#AT#2 == meta.trap#AT#1;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  assume t_exact_0.action_run#AT#1 == t_exact_0.action_run#AT#0;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  assume forward#AT#1 == true;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  assume inline$a_with_control_params$0$x#AT#0 == inline$a_with_control_params$0$x;
+notFixupCmd:
+  assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+  assume standard_metadata.egress_spec#AT#0 == 1bv9;
+isFixupCmd assume inline$a_with_control_params$1$x#AT#0 == 1bv9;
+
+notFixupCmd:
+  assume {:partition} 1bv8 == 1bv8 && 1bv9 == 1bv9;
+  assume meta.trap#AT#1 == false;
+isFixupCmd assume meta.trap#AT#1 == false;
+
+interation
+remove 24 commands
+fixup 0 commands
+Type1: 0, Type2: 0
+bug [0]
+Block inline$ingress$0$anon2_Then
+  hdr.trap.trap := add.bv8(hdr.trap.trap, 1bv8);
+  !!!invalid access to hdr.trap.trap, at row 148, col 23
+
+checkpoint: 11
+invalidAccesses: 1
+implicit drop
+inline$ingress$0$anon2_Then
+total CPU Time: 0.3372 s
+algorithm CPU Time: 0.171383 s

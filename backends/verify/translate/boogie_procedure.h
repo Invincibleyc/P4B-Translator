@@ -11,20 +11,24 @@ class BoogieProcedure{
 	cstring declaration;
 	cstring body;
 	
-	std::vector<BoogieStatement> statements;
-	std::vector<BoogieStatement> variableDeclaration;
 	bool hasImplementation = false;
 	bool addAssertions = false;
 public:
+	std::vector<BoogieStatement> statements;
+	std::vector<BoogieStatement> variableDeclaration;
+	
 	std::set<cstring> modifies;
 	std::map<cstring, int> parameters;  // <name, size>
 	std::vector<cstring> succ;
+	std::set<cstring> localVariables;
 	bool isParserState = false;
 	BoogieProcedure();
 	BoogieProcedure(const cstring& name);
 	BoogieProcedure(cstring& name, cstring& decl, cstring& body);
 	void addDeclaration();
 	void addModifiedGlobalVariables(cstring variable);
+	void addLocalVariables(cstring variable);
+	bool hasLocalVariables(cstring variable);
 	void addFrontStatement(const cstring &cont);
 	void addFrontStatement(BoogieStatement statement);
 	int findStatement(const cstring &cont);

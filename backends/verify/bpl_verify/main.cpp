@@ -27,6 +27,8 @@ limitations under the License.
 #include "backends/verify/translate/options.h"
 #include "backends/verify/translate/version.h"
 #include "backends/verify/translate/translate.h"
+#include "backends/verify/translate/analyzer.h"
+#include "backends/verify/translate/bmv2.h"
 #include "frontends/common/applyOptionsPragmas.h"
 #include "frontends/common/parseInput.h"
 #include "frontends/p4/frontend.h"
@@ -85,12 +87,19 @@ int main(int argc, char *const argv[]) {
     double backend_cpu_time_used;
     backend_start = clock();
 
+    std::ifstream bmv2cmds(options.cmdFile);
+    if(bmv2cmds){
+        BMV2CmdsAnalyzer bMV2CmdsAnalyzer(&bmv2cmds);
+    }
+
     std::ostream* out = openFile(options.outputBplFile, false);
     if (out != nullptr) {
-        Translator translator(*out);
+        Translator translator(*out, options);
         translator.translate(program);
         translator.writeToFile();
         out->flush();
+        // Analyzer analyzer;
+        // analyzer.analyzeP4Program(program);
     }
     backend_end = clock();
     backend_cpu_time_used = ((double) (backend_end - backend_start)) / CLOCKS_PER_SEC;

@@ -22,6 +22,14 @@ void BoogieProcedure::addModifiedGlobalVariables(cstring variable){
 	modifies.insert(variable);
 }
 
+void BoogieProcedure::addLocalVariables(cstring variable){
+	localVariables.insert(variable);
+}
+
+bool BoogieProcedure::hasLocalVariables(cstring variable){
+	return localVariables.find(variable) != localVariables.end();
+}
+
 void BoogieProcedure::addFrontStatement(const cstring &cont){
 	addFrontStatement(BoogieStatement(cont));
 }
@@ -32,9 +40,7 @@ void BoogieProcedure::addFrontStatement(BoogieStatement statement){
 
 int BoogieProcedure::findStatement(const cstring &cont){
 	int offset = 0;
-	// std::cout << cont << std::endl;
 	for(BoogieStatement statement:statements){
-		// std::cout << statement.toString() << std::endl;
 		if(statement.toString().find(cont) != nullptr)
 			return offset;
 		offset += 1;
@@ -57,7 +63,6 @@ void BoogieProcedure::addVariableDeclaration(const cstring &cont){
 }
 
 void BoogieProcedure::addVariableDeclaration(BoogieStatement statement){
-	this->hasImplementation = true;
 	variableDeclaration.push_back(statement);
 }
 
@@ -70,16 +75,12 @@ void BoogieProcedure::addStatement(const cstring &cont){
 			}
 		}
 	}
-	
-	// std::cout << "added: " << cont << std::endl;
-	// std::cout << cont << std::endl;
 	addStatement(BoogieStatement(cont));
 }
 
 void BoogieProcedure::addStatement(BoogieStatement statement){
 	this->hasImplementation = true;
 	statements.push_back(statement);
-	// std::cout << statement.toString() << std::endl;
 }
 
 void BoogieProcedure::addImplementation(const cstring& body){
