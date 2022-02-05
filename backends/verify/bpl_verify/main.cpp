@@ -88,8 +88,14 @@ int main(int argc, char *const argv[]) {
     backend_start = clock();
 
     std::ifstream bmv2cmds(options.cmdFile);
+    BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
     if(bmv2cmds){
-        BMV2CmdsAnalyzer bMV2CmdsAnalyzer(&bmv2cmds);
+        try{
+            bMV2CmdsAnalyzer = new BMV2CmdsAnalyzer(&bmv2cmds);
+        } catch (const char* msg) {
+            std::cerr << msg << std::endl;
+            return 1;
+        }
     }
 
     std::ostream* out = openFile(options.outputBplFile, false);

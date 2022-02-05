@@ -1,7 +1,8 @@
 #include "translate.h"
 #include <sstream>
 
-Translator::Translator(std::ostream &out, P4VerifyOptions &options) : out(out), options(options){
+Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer) 
+    : out(out), options(options), bMV2CmdsAnalyzer(bMV2CmdsAnalyzer){
     // init main procedure
     cstring mainProcedureDeclaration;
     mainProcedure = BoogieProcedure("mainProcedure");

@@ -8,6 +8,7 @@
 #include "ir/ir.h"
 #include "boogie_procedure.h"
 #include "boogie_statement.h"
+#include "bmv2.h"
 #include "backends/verify/translate/options.h"
 
 
@@ -36,9 +37,10 @@ private:
 	// assertion
 	bool addAssertions = false;
 	int switchStatementCount = 0;
+	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
 
 public:
-	Translator(std::ostream &out, P4VerifyOptions &options);
+	Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr);
 	void writeToFile();
 	cstring toString();
 	cstring toString(int val);

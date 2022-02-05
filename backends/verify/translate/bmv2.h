@@ -30,6 +30,8 @@ const cstring NAME_TABLE_DELETE = "TableDelete";
 const cstring NAME_TABLE_SET_DEFAULT = "TableSetDefault";
 const cstring NAME_REGISTER_WRITE = "RegisterWrite";
 
+const cstring TABLE_MATCH_SYMBOL = "=>";
+
 class BMV2Cmd{
 public:
 	BMV2Cmd();
@@ -39,6 +41,8 @@ public:
 	static std::vector<cstring> split(std::string str);
 	static std::vector<cstring> split(cstring str);
 	static cstring splitFirst(std::string str);
+	static cstring getName(std::string str); // obj.xxx, return xxx
+	static cstring getControl(std::string str); // obj.xxx, return obj
 };
 
 // table_add
@@ -48,7 +52,7 @@ public:
 	cstring control;  // may be null
 	cstring table;
 	cstring action;
-	std::vector<cstring> keys;
+	std::vector<cstring> fields;
 	std::vector<cstring> parameters;  // the last one may be the priority
 };
 
