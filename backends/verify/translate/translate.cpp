@@ -930,6 +930,9 @@ cstring Translator::translate(const IR::Declaration *decl){
     else if (auto declVar = decl->to<IR::Declaration_Variable>()){
         return translate(declVar);
     }
+    else if (auto instance = decl->to<IR::Declaration_Instance>()){
+        translate(instance);
+    }
     return "";
 }
 
@@ -1447,6 +1450,9 @@ void Translator::translate(const IR::Type_Enum *typeEnum){
 void Translator::translate(const IR::Declaration_Instance *instance){
     cstring typeName = translate(instance->type);
     cstring name = instance->name.toString();
+
+    std::cout << "**instance: " << typeName << " " << name << std::endl;
+
     if(typeName=="V1Switch"){
         BoogieProcedure main = BoogieProcedure(name);
         main.addDeclaration("procedure {:inline 1} "+name+"()\n");
@@ -1488,17 +1494,33 @@ void Translator::translate(const IR::Declaration_Instance *instance){
         mainProcedure.addSucc(name);
         addPred(name, mainProcedure.getName());
     }
+
+    // TOFO: rename
     if(typeName=="register"){
+        std::cout << "name" << name << std::endl;
+
         // size
         auto constant = (*instance->arguments)[0]->expression->to<IR::Constant>();
         cstring size = toString(constant->value);
+
+        std::cout << "size: " << size << std::endl;
 
         // value type
         auto valueType = instance->type->to<IR::Type_Specialized>();
         cstring valueTypeName = translate((*valueType->arguments)[0]);
 
+        std::cout << "valueTypeName: " << valueTypeName << std::endl;
+
         // size
-        cstring sizeTypeName = translate((*valueType->arguments)[1]);
+        cstring sizeTypeName;
+        if((*valueType->arguments).size() > 1){
+            sizeTypeName = translate((*valueType->arguments)[1]);
+        }
+        else{
+            sizeTypeName = "bv32";
+        }
+
+        std::cout << "sizeTypeName: " << sizeTypeName << std::endl;
 
         // Consider the register as a set of variables (e.g., reg1, reg2, ...)
         // TODO: rename register
