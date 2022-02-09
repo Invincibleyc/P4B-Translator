@@ -19,6 +19,7 @@ public:
 	
 	std::set<cstring> modifies;
 	std::map<cstring, int> parameters;  // <name, size>
+	std::map<cstring, int> declarationVariables;  // P4 Declaration Variable <name, size>
 	std::vector<cstring> succ;
 	std::set<cstring> localVariables;
 	bool isParserState = false;

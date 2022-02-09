@@ -116,7 +116,7 @@ public:
 	void translate(const IR::Type_Error *typeError);
 	void translate(const IR::Type_Extern *typeExtern);
 	void translate(const IR::Type_Enum *typeEnum);
-	void translate(const IR::Declaration_Instance *instance);
+	void translate(const IR::Declaration_Instance *instance, cstring instanceName="");
 
 	void translate(const IR::Type_Struct *typeStruct);
 	void translate(const IR::Type_Struct *typeStruct, cstring arg);

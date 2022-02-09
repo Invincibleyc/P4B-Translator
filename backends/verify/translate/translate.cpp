@@ -475,8 +475,12 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     else if(expr.find("clone3") != nullptr){
         return getIndent()+"// clone\n";
     }
-    else if(expr.find("hash") != nullptr){
-        return getIndent()+"// hash\n";
+    // else if(expr.find("hash") != nullptr){
+    else if(expr=="hash"){
+        currentProcedure->addStatement(getIndent()+"// hash\n");
+        cstring expr2 = translate(methodCallStatement->methodCall);
+        currentProcedure->addStatement(getIndent()+expr2+";\n");
+        return "";
     }
     else if(expr.find("digest") != nullptr){
         return getIndent()+"// digest\n";
@@ -783,6 +787,31 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         return res;
     }
 
+    if(method=="hash"){
+        // hash(result, hashAlgorithm, from, tuple, to)
+        std::cout << "here" << std::endl;
+        // std::string::size_type idx = ((std::string)method.c_str()).find(".read");
+        cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
+        cstring typeName = translate((*methodCallExpression->arguments)[0]->expression->type);
+
+        // cstring arg1 = translate((*methodCallExpression->arguments)[1]);  // index
+        cstring arg2 = translate((*methodCallExpression->arguments)[2]);
+        // cstring arg3 = translate((*methodCallExpression->arguments)[3]);
+        cstring arg4 = translate((*methodCallExpression->arguments)[4]);
+
+        addFunction("bsge", "bvsge", typeName, "bool");
+        // cstring right = translate(opBinary->right);
+        // if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
+            // right += returnType;
+        // return "bsge."+typeName+"("+translate(opBinary->left)+", "+right+")";
+
+        res += "assume(bsge."+typeName+"("+arg0+", "+arg2+
+            ") && bsge."+typeName+"("+arg4+", "+arg0+"))";
+        // currentProcedure->addModifiedGlobalVariables(arg0);
+        std::cout << res << std::endl;
+        return res;
+    }
+
     std::string s = method.c_str();
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
@@ -843,10 +872,18 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     for(auto arg:*methodCallExpression->arguments){
         res += translate(arg);
         cnt--;
+        
+        // packet_in.extract with multiple parameters (only consider the first param)
+        if(method.find("extract") != nullptr){
+            break;
+        }
+
         if(cnt != 0)
             res += ", ";
     }
     res += ")";
+    if(method.find("extract") != nullptr)
+        std::cout << "extract call: " << res << std::endl;
     return res;
 }
 
@@ -936,27 +973,61 @@ cstring Translator::translate(const IR::Declaration *decl){
     return "";
 }
 
-cstring Translator::translate(const IR::Declaration_Variable *declVar){
+cstring Translator::translate(const IR::Declaration_Variable *declVar){ 
+    // Should be declared as global variables
+    // Variables have been renamed by p4c
+
     cstring res = "";
+    addGlobalVariables(translate(declVar->name));
+    addDeclaration("var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
     if(declVar->initializer == nullptr){
         if(currentProcedure != nullptr){
-            currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+            // For Type_Unknown
+            // Record the types of local variables
+            if(auto typeBits = declVar->type->to<IR::Type_Bits>()){
+                currentProcedure->declarationVariables[translate(declVar->name)] = typeBits->size;
+            }
         }
-        else
-            res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
     }
     else{
         if(currentProcedure != nullptr){
-            currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
             currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
+            if(auto typeBits = declVar->type->to<IR::Type_Bits>()){
+                currentProcedure->declarationVariables[translate(declVar->name)] = typeBits->size;
+            }
         }
-        else{
-            res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
-        }
-        // currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
-        // currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
     }
     return res;
+
+    // cstring res = "";
+    // if(declVar->initializer == nullptr){
+    //     if(currentProcedure != nullptr){
+    //         // Variable declaration in Boogie must be at the beginning of procesures
+    //         currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+    //         // For Type_Unknown
+    //         // Record the types of local variables
+    //         if(auto typeBits = declVar->type->to<IR::Type_Bits>()){
+    //             currentProcedure->declarationVariables[translate(declVar->name)] = typeBits->size;
+    //         }
+    //     }
+    //     else
+    //         res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+    // }
+    // else{
+    //     if(currentProcedure != nullptr){
+    //         currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+    //         currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
+    //         if(auto typeBits = declVar->type->to<IR::Type_Bits>()){
+    //             currentProcedure->declarationVariables[translate(declVar->name)] = typeBits->size;
+    //         }
+    //     }
+    //     else{
+    //         res += getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n";
+    //     }
+    //     // currentProcedure->addVariableDeclaration(getIndent()+"var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
+    //     // currentProcedure->addStatement(BoogieStatement(getIndent()+translate(declVar->name)+" := "+translate(declVar->initializer)+";\n"));
+    // }
+    // return res;
 }
 
 // cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring localDeclArg){
@@ -1145,6 +1216,7 @@ cstring Translator::translate(const IR::Cast *cast){
     if (auto destType = cast->destType->to<IR::Type_Bits>()){
         int dstSize = destType->size, srcSize = -1;
         cstring expr = translate(cast->expr);
+
         if(auto srcType = cast->expr->type->to<IR::Type_Bits>()){
             srcSize = srcType->size;
         }
@@ -1153,7 +1225,12 @@ cstring Translator::translate(const IR::Cast *cast){
                 currentProcedure->parameters.end()){
                 srcSize = currentProcedure->parameters[expr];
             }
+            else if(currentProcedure->declarationVariables.find(expr)!=
+                currentProcedure->declarationVariables.end()){
+                srcSize = currentProcedure->declarationVariables[expr];
+            }
         }
+
         if(srcSize!=-1){
             if(dstSize < srcSize) {
                 return expr+"["+std::to_string(dstSize)+":0]";
@@ -1447,11 +1524,14 @@ void Translator::translate(const IR::Type_Enum *typeEnum){
     // std::cout << "translate Type_Enum" << std::endl;
 }
 
-void Translator::translate(const IR::Declaration_Instance *instance){
+void Translator::translate(const IR::Declaration_Instance *instance, cstring instanceName){
     cstring typeName = translate(instance->type);
-    cstring name = instance->name.toString();
+    cstring name = instance->getName().toString();
 
-    std::cout << "**instance: " << typeName << " " << name << std::endl;
+    if(instanceName != "") name = instanceName;
+
+    // std::cout << "**instance: " << typeName << " " << name << std::endl;
+    // std::cout << "**instance: " << instance->toString() << std::endl;
 
     if(typeName=="V1Switch"){
         BoogieProcedure main = BoogieProcedure(name);
@@ -1497,19 +1577,19 @@ void Translator::translate(const IR::Declaration_Instance *instance){
 
     // TOFO: rename
     if(typeName=="register"){
-        std::cout << "name" << name << std::endl;
+        // std::cout << "name: " << name << std::endl;
 
         // size
         auto constant = (*instance->arguments)[0]->expression->to<IR::Constant>();
         cstring size = toString(constant->value);
 
-        std::cout << "size: " << size << std::endl;
+        // std::cout << "size: " << size << std::endl;
 
         // value type
         auto valueType = instance->type->to<IR::Type_Specialized>();
         cstring valueTypeName = translate((*valueType->arguments)[0]);
 
-        std::cout << "valueTypeName: " << valueTypeName << std::endl;
+        // std::cout << "valueTypeName: " << valueTypeName << std::endl;
 
         // size
         cstring sizeTypeName;
@@ -1520,7 +1600,7 @@ void Translator::translate(const IR::Declaration_Instance *instance){
             sizeTypeName = "bv32";
         }
 
-        std::cout << "sizeTypeName: " << sizeTypeName << std::endl;
+        // std::cout << "sizeTypeName: " << sizeTypeName << std::endl;
 
         // Consider the register as a set of variables (e.g., reg1, reg2, ...)
         // TODO: rename register
@@ -1538,7 +1618,9 @@ void Translator::translate(const IR::Declaration_Instance *instance){
         //     valueTypeName << std::endl;
 
 
-        /* read and write functions */
+        /* read and write functions 
+           may be related to renaming
+        */
         // read function
         BoogieProcedure read = BoogieProcedure(name+".read");
         // one parameter, return reg[index]
@@ -1563,8 +1645,10 @@ void Translator::translate(const IR::Declaration_Instance *instance){
         BoogieProcedure registerInit = BoogieProcedure(registerInitName);
         registerInit.addDeclaration("procedure {:inline 1} "+registerInitName+"();\n");
         registerInit.addDeclaration("    ensures(forall idx:"+sizeTypeName+":: "+name+"[idx]==0"+valueTypeName+");\n");
+        registerInit.addModifiedGlobalVariables(name);
         addProcedure(registerInit);
         mainProcedure.addFrontStatement("    call "+registerInitName+"();\n");
+        mainProcedure.addModifiedGlobalVariables(name);
         addPred(registerInitName, mainProcedure.getName());
     }
 }
@@ -1773,12 +1857,33 @@ void Translator::translate(const IR::P4Control *p4Control){
     control.setImplemented();
     addProcedure(control);
 
+    std::vector<cstring> declarations;
+    for(auto declaration:*p4Control->getDeclarations()){
+        if(declaration->to<IR::Declaration_Instance>())
+            declarations.push_back(translate(declaration->getName()));
+        // std::cout << "**declaration: " << translate(declaration->getName()) << std::endl;
+    }
     currentProcedure = &procedures[controlName];
 
     for(auto controlLocal:p4Control->controlLocals){
         currentProcedure = &procedures[controlName];
-        translate(controlLocal);
+        if(auto instance = controlLocal->to<IR::Declaration_Instance>()){
+            cstring instanceName = instance->getName().toString();
+            cstring renamedInstance = "";
+            for(cstring declaration:declarations){
+                if(declaration.find(instanceName)!=nullptr 
+                    && declaration.size()>renamedInstance.size())
+                    renamedInstance = declaration;
+            }
+            translate(instance, renamedInstance);
+        }
+        else{
+            // can be declared as global variables
+            // p4c has finished renaming
+            translate(controlLocal);
+        }
     }
+
     
     currentProcedure->addDeclaration("\n// Control "+controlName+"\n");
     currentProcedure->addDeclaration("procedure {:inline 1} "+controlName+"()\n");

@@ -67,7 +67,7 @@ TODO:
 >
 > 25) header_union
 >
-> 26) extract with 2 parameters (**checksum1-bmv2.p4**)
+> √ 26) extract with 2 parameters (**checksum1-bmv2.p4**) 
 >
 > 27) user-defined error (**checksum1-bmv2.p4**)
 >
@@ -77,7 +77,7 @@ TODO:
 >
 > 30) counter
 >
-> 31) register
+> √ 31) register
 >
 > 32) complex parser (direct-call2.p4)
 >
