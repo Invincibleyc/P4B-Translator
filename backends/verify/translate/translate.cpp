@@ -521,6 +521,12 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     else if(expr.find("recirculate") != nullptr){
         return getIndent()+"// recirculate\n";
     }
+    else if(expr == "verify"){
+        currentProcedure->addStatement(getIndent()+"// verify\n");
+        cstring expr2 = translate(methodCallStatement->methodCall);
+        currentProcedure->addStatement(getIndent()+expr2+";\n");
+        return "";
+    }
     cstring expr2 = translate(methodCallStatement->methodCall);
     currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
     return "";
@@ -789,7 +795,6 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
 
     if(method=="hash"){
         // hash(result, hashAlgorithm, from, tuple, to)
-        std::cout << "here" << std::endl;
         // std::string::size_type idx = ((std::string)method.c_str()).find(".read");
         cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
         cstring typeName = translate((*methodCallExpression->arguments)[0]->expression->type);
@@ -806,9 +811,15 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         // return "bsge."+typeName+"("+translate(opBinary->left)+", "+right+")";
 
         res += "assume(bsge."+typeName+"("+arg0+", "+arg2+
-            ") && bsge."+typeName+"("+arg4+", "+arg0+"))";
-        // currentProcedure->addModifiedGlobalVariables(arg0);
-        std::cout << res << std::endl;
+            ") && bsge."+typeName+"("+arg4+", "+arg0+"));\n"+
+            getIndent()+"havoc "+arg0;
+        currentProcedure->addModifiedGlobalVariables(arg0);
+        return res;
+    }
+
+    if(method=="verify"){
+        cstring arg = translate((*methodCallExpression->arguments)[0]);
+        res += "assert("+arg+")";
         return res;
     }
 
@@ -882,8 +893,6 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             res += ", ";
     }
     res += ")";
-    if(method.find("extract") != nullptr)
-        std::cout << "extract call: " << res << std::endl;
     return res;
 }
 
@@ -1303,7 +1312,6 @@ cstring Translator::translate(const IR::Type *type){
 }
 
 cstring Translator::translate(const IR::Type_Bits *typeBits){
-    // std::cout << "here" << std::endl;
     std::stringstream ss;
     ss << "bv" << typeBits->size;
     // std::cout << "Type_Bits" << std::endl;
@@ -1513,7 +1521,12 @@ void Translator::translate(const IR::P4Program *program){
 }
 
 void Translator::translate(const IR::Type_Error *typeError){
-    // std::cout << "translate Type_Error" << std::endl;
+    std::cout << "translate Type_Error: " << typeError->error << std::endl;
+    for(auto elem:typeError->members){
+        if(auto member = elem->to<IR::Declaration_ID>()){
+            std::cout << member->name << std::endl;
+        }
+    }
 }
 
 void Translator::translate(const IR::Type_Extern *typeExtern){
@@ -1776,8 +1789,8 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
             cstring name = translate(declVar->name);
             cstring type = translate(declVar->type);
-            addDeclaration("var "+name+":"+type+";\n");
-            addGlobalVariables(name);
+            currentProcedure->addVariableDeclaration("var "+name+":"+type+";\n");
+            // addGlobalVariables(name);
             localDecl += name+":"+type;
             localDeclArg += translate(declVar->name);
         }

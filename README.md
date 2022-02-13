@@ -43,7 +43,7 @@ TODO:
 >
 > 13) action_selector
 >
-> 14) hash Algorithm
+> √ 14) hash Algorithm
 >
 > 15) parser **packet_in.advance**
 >
@@ -83,7 +83,7 @@ TODO:
 >
 > 33) enum (**enum-bmv2.p4**)
 >
-> 34)
+> 34) verify (**issue1560-bmv2.p4**)
 
 function.p4
 
