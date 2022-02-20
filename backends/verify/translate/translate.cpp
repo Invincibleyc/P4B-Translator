@@ -827,13 +827,13 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
         int i = idx;
-        if(options.addAssertion){
+        if(options.addValidityAssertion){
             cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
             while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
                 currentProcedure->removeLastStatement();
             }
         }
-        if(options.addAssertion){
+        if(options.addValidityAssertion){
             cstring assertStmt = "assert(false);";
             while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
                 currentProcedure->removeLastStatement();
@@ -848,7 +848,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     //     std::cout << "find... " << s.find("isValid") << std::endl;
     // }
     if(method.find("setValid(") != nullptr || method.find("setInvalid(")){
-        if(options.addAssertion){
+        if(options.addValidityAssertion){
             if(currentProcedure->lastStatement().find("assert(")!= nullptr){
                 currentProcedure->removeLastStatement();
             }
@@ -924,13 +924,23 @@ cstring Translator::translate(const IR::Member *member){
         // std::cout << member << std::endl;
     }
 
+    // For header stack
     if(auto arrayIndex = member->expr->to<IR::ArrayIndex>()){
+        if(options.addBoundAssertion){
+            if(auto typeStack = arrayIndex->left->type->to<IR::Type_Stack>()){
+                currentProcedure->addStatement(getIndent()+"assert ("
+                                                +translate(arrayIndex->right)+ "<" +
+                                                translate(typeStack->size)+");\n");
+                }
+            // }
+        }
         return translate(arrayIndex->left)+"."+translate(arrayIndex->right)+"."+member->member.toString();
     }
+
     if(auto typeHeader = member->type->to<IR::Type_Header>()){
         cstring hdr = translate(member->expr)+"."+member->member.toString();
         cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
-        if(options.addAssertion){
+        if(options.addValidityAssertion){
             if(currentProcedure->lastStatement() == "" || 
                 (currentProcedure->lastStatement() != stmt 
                     && stmt.find(currentProcedure->lastStatement()) == nullptr)){
@@ -944,9 +954,9 @@ cstring Translator::translate(const IR::Member *member){
                 // std::cout << currentProcedure->lastStatement() << std::endl;
             }
         }
-        if(options.addAssertion){
+        if(options.addValidityAssertion){
             cstring stmt = getIndent()+"assert(false);\n";
-            if(options.addAssertion && currentProcedure->lastStatement() == "" || 
+            if(options.addValidityAssertion && currentProcedure->lastStatement() == "" || 
                 (currentProcedure->lastStatement() != stmt 
                     && stmt.find(currentProcedure->lastStatement()) == nullptr)){
                 currentProcedure->addStatement(stmt);
@@ -1517,6 +1527,9 @@ void Translator::translate(const IR::P4Program *program){
     // Translate objects
     for(auto obj:program->objects){
         translate(obj);
+    }
+    if(options.addForwardingAssertion){
+        mainProcedure.addStatement("    assert(forward || drop);\n");
     }
 }
 

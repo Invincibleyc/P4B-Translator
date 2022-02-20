@@ -7,7 +7,9 @@
 class P4VerifyOptions : public CompilerOptions {
  public:
     bool translateOnly = false;
-    bool addAssertion = false;
+    bool addValidityAssertion = false;
+    bool addForwardingAssertion = false;
+    bool addBoundAssertion = false;
     bool loadIRFromJson = false;
     bool whileLoop = false;
     bool havocStatefulElements = false;
@@ -39,11 +41,21 @@ class P4VerifyOptions : public CompilerOptions {
                            return true;
                        },
                        "read static bmv2 CLI commands together with the P4 program");
-        registerOption("--assert", nullptr,
+        registerOption("--assert-validity", nullptr,
                        [this](const char*) {
-                           addAssertion = true;
+                           addValidityAssertion = true;
                            return true; },
                        "add assertions for header accessing");
+        registerOption("--assert-forward", nullptr,
+                       [this](const char*) {
+                           addForwardingAssertion = true;
+                           return true; },
+                       "add assertions for egress_spec assignment");
+        registerOption("--assert-bound", nullptr,
+                       [this](const char*) {
+                           addBoundAssertion = true;
+                           return true; },
+                       "add assertions for header stack out-of-bounds");
         
         /*
           Options for invariant generation
