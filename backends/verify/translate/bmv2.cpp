@@ -6,7 +6,7 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 	while(getline(*fin, s)){
 		cstring label = BMV2Cmd::splitFirst(s);
 		if(label == TABLE_ADD){
-			std::cout << BMV2Cmd::splitFirst(s) << std::endl;
+			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
 			BMV2Cmd* cmd = new TableAdd(s);
 			cmds.push_back(cmd);
 		}
@@ -17,7 +17,7 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 
 		}
 		else if(label == REGISTER_WRITE){
-			std::cout << BMV2Cmd::splitFirst(s) << std::endl;
+			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
 			BMV2Cmd* cmd = new RegisterWrite(s);
 			cmds.push_back(cmd);
 		}
@@ -26,6 +26,8 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 		}
 		// std::cout << s << std::endl;
 	}
+
+	// std::cout << hasTableAddCmds() << std::endl;
 
 	// char *line = NULL;
 	// size_t len = 0;
@@ -36,6 +38,31 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 	// 	BMV2Cmd* cmd;
 	// 	printf("%s", line);
 	// }
+}
+
+std::vector<TableAdd*> BMV2CmdsAnalyzer::getTableAddCmds(cstring table){
+	std::vector<TableAdd*> res;
+	for(auto cmd:cmds){
+		if(cmd->cmdType == NAME_TABLE_ADD){
+			TableAdd* tableAdd = (TableAdd*)cmd;
+			if(isSame(table, tableAdd->table)){
+				res.push_back(tableAdd);
+			}
+		}
+	}
+	return res;
+}
+
+bool BMV2CmdsAnalyzer::hasTableAddCmds(cstring table){
+	for(auto cmd:cmds){
+		if(cmd->cmdType == NAME_TABLE_ADD){
+			TableAdd* tableAdd = (TableAdd*)cmd;
+			if(isSame(table, tableAdd->table)){
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 std::vector<cstring> BMV2Cmd::split(cstring str){
@@ -54,7 +81,7 @@ std::vector<cstring> BMV2Cmd::split(std::string str){
 
 	while(idx2 != std::string::npos){
 		res.push_back(str.substr(idx1, idx2-idx1));
-		std::cout << "  push_back:  " << str.substr(idx1, idx2-idx1) << std::endl;
+		// std::cout << "  push_back:  " << str.substr(idx1, idx2-idx1) << std::endl;
 		idx1 = idx2+1;
 		while(idx1 != str.length() && str[idx1]==' '){
 			idx1++;
@@ -69,7 +96,7 @@ std::vector<cstring> BMV2Cmd::split(std::string str){
 
 	if(idx1 != str.length()-1){
 		res.push_back(str.substr(idx1));
-		std::cout << "  push_back_rest:  " << str.substr(idx1) << std::endl;
+		// std::cout << "  push_back_rest:  " << str.substr(idx1) << std::endl;
 	}
 
 	return res;

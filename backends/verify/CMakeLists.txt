@@ -32,6 +32,8 @@ set (P4VERIFY_BACKEND_TRANSLATE_SRCS
   translate/boogie_statement.cpp
   translate/bmv2.h
   translate/bmv2.cpp
+  translate/utils.h
+  translate/utils.cpp
 )
 add_cpplint_files (${CMAKE_CURRENT_SOURCE_DIR} "${P4VERIFY_BACKEND_TRANSLATE_SRCS}")
 

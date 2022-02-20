@@ -88,7 +88,7 @@ int main(int argc, char *const argv[]) {
     backend_start = clock();
 
     std::ifstream bmv2cmds(options.cmdFile);
-    BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
+    BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr;
     if(bmv2cmds){
         try{
             bMV2CmdsAnalyzer = new BMV2CmdsAnalyzer(&bmv2cmds);
@@ -100,7 +100,7 @@ int main(int argc, char *const argv[]) {
 
     std::ostream* out = openFile(options.outputBplFile, false);
     if (out != nullptr) {
-        Translator translator(*out, options);
+        Translator translator(*out, options, bMV2CmdsAnalyzer);
         translator.translate(program);
         translator.writeToFile();
         out->flush();

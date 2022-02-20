@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include "lib/cstring.h"
+#include "utils.h"
 
 /* 
   used to analyze bmv2 commands (CLI style)
@@ -89,6 +90,9 @@ public:
 
 	void analyzeBMV2Commands();
 	void analyzeSingleCommand();
+	std::vector<TableAdd*> getTableAddCmds(cstring table);
+	bool hasTableAddCmds(cstring table);
+	// std::vector<TableDelete*> getTableDeleteCmds();
 };
 
 
