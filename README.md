@@ -2,7 +2,31 @@
 
 P4B-Translator is the translator from P4 to Boogie IVL. It is developed based on p4c, the P4 reference compiler.
 
-TODO:
+## P4B Dependencies
+
+- [here](#ubuntu-dependencies)
+
+## Build
+
+```
+git clone --recursive git@github.com:Invincibleyc/P4B-Translator.git
+mkdir build
+cd build
+cmake ..
+make -j4
+sudo make install
+```
+
+## Commands
+
+```
+# Translate p4 into boogie for UAutomizer
+p4c-translator <P4File> --ua -o <outFile>
+```
+
+
+
+## TODO
 
 > 1) Table static entries (specified by keyword **entries**)
 >
