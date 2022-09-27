@@ -11,8 +11,8 @@ class BoogieProcedure{
 	cstring declaration;
 	cstring body;
 	
-	bool hasImplementation = false;
 	bool addAssertions = false;
+	bool hasImplementation = false;
 public:
 	std::vector<BoogieStatement> statements;
 	std::vector<BoogieStatement> variableDeclaration;

@@ -15,6 +15,10 @@
 class Translator{
 private:
 	BoogieProcedure mainProcedure;
+
+	// havoc header fields
+	BoogieProcedure havocProcedure;
+	
 	// std::vector<BoogieProcedure> procedures;
 	std::map<cstring, BoogieProcedure> procedures;
 	cstring declaration;
@@ -25,6 +29,8 @@ private:
 	std::map<cstring, const IR::Type_Struct*> structs;
 	std::map<cstring, const IR::P4Action*> actions;
 	std::map<cstring, const IR::P4Table*> tables;
+	std::map<cstring, int> typeDefs;
+
 	std::vector<const IR::Declaration_Instance*> instances;
 	std::set<cstring> stacks;
 	std::set<cstring> functions;
@@ -39,6 +45,8 @@ private:
 	int switchStatementCount = 0;
 	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
 
+	int maxBitvectorSize;
+
 public:
 	Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr);
 	void writeToFile();
@@ -49,6 +57,7 @@ public:
 	void addProcedure(BoogieProcedure procedure);
 	void addDeclaration(cstring decl);
 	void addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType);
+	void addFunction(cstring funcName, cstring func);
 	void analyzeProgram(const IR::P4Program *program);
 	cstring translate(IR::ID id);
 	void incIndent();
@@ -61,6 +70,12 @@ public:
 	bool isGlobalVariable(cstring variable);
 	void updateModifiedVariables(cstring variable);
 	void addPred(cstring proc, cstring predProc);
+
+	// For Ultimate Automizer (bitvector to integer)
+	void updateMaxBitvectorSize(int size);
+	void updateMaxBitvectorSize(const IR::Type_Bits *typeBits);
+	void addUAFunctions();
+	cstring translateUA(const IR::Operation_Binary *opBinary);
 
 	void translate(const IR::Node *node);
 	void translate(const IR::Node *node, cstring arg);
@@ -98,6 +113,7 @@ public:
 	cstring translate(const IR::LNot *lnot);
 	cstring translate(const IR::Mask *mask);
 	cstring translate(const IR::ArrayIndex *arrayIndex);
+	cstring translate(const IR::BoolLiteral *boolLiteral);
 
 	// Type
 	cstring translate(const IR::Type *type);

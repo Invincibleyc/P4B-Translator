@@ -136,6 +136,7 @@ cstring BoogieProcedure::toString(){
 		// }
 		res += ";\n";
 	}
+	
 	if(hasImplementation){
 		res += "{\n";
 		if(!variableDeclaration.empty()){

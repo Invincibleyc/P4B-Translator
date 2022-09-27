@@ -10,6 +10,8 @@ class P4VerifyOptions : public CompilerOptions {
     bool addValidityAssertion = false;
     bool addForwardingAssertion = false;
     bool addBoundAssertion = false;
+    bool useHeaderRef = false;
+    
     bool loadIRFromJson = false;
     bool whileLoop = false;
     bool havocStatefulElements = false;
@@ -17,6 +19,11 @@ class P4VerifyOptions : public CompilerOptions {
     cstring outputBplFile = nullptr;
     bool bmv2cmds = false;
     cstring cmdFile = nullptr;
+
+    bool gotoOrIf = false; // 1:goto, 0:if
+
+    bool bv2int = false;
+    bool ultimateAutomizer = false;
 
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
@@ -56,7 +63,44 @@ class P4VerifyOptions : public CompilerOptions {
                            addBoundAssertion = true;
                            return true; },
                        "add assertions for header stack out-of-bounds");
+        registerOption("--ref", nullptr,
+                       [this](const char*) {
+                           useHeaderRef = true;
+                           return true; },
+                       "use header reference to access header fields instead of fields variables");
         
+        /*
+          Some Boogie compiler/verifier does not support goto statements.
+          If so, use if-else statements instead.
+        */
+        registerOption("--gotoOrIf", nullptr,
+                       [this](const char*) {
+                           gotoOrIf = true;
+                           return true; },
+                       "1:goto, 0:if (default:0)");
+
+        /*
+          Some verifier does not support bit-vector theory.
+          Use integer instead of bitvector
+        */
+        registerOption("--bv2int", nullptr,
+                       [this](const char*) {
+                           bv2int = true;
+                           return true; },
+                       "use integer instead of bitvector");
+
+        /*
+          Use Ultimate Automizer as backend
+        */
+        registerOption("--ua", nullptr,
+                       [this](const char*) {
+                           ultimateAutomizer = true;
+                           bv2int = true;
+                           gotoOrIf = false;
+                           whileLoop = true;
+                           return true; },
+                       "use Ultimate Automizer as the backend");
+
         /*
           Options for invariant generation
         */

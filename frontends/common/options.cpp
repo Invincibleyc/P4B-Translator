@@ -247,6 +247,12 @@ CompilerOptions::CompilerOptions() : Util::Options(defaultMessage) {
                       return false;
                    },
                    "List exact names of all frontend passes\n");
+    registerOption("--ltl", "file",
+                   [this](const char* arg) {
+                      ltlFile = arg;
+                      return true;
+                   },
+                   "Specify LTL specification\n");
 }
 
 void CompilerOptions::setInputFile() {

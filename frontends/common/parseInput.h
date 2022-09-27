@@ -97,6 +97,17 @@ const IR::P4Program* parseP4File(CompilerOptions& options) {
     return result;
 }
 
+// *
+//  * Created in 2022/06/14 by Chong Ye.
+//  * Parse P4 LTL from a file. The filename is specified by @options.
+//  *
+//  * @return a P4 LTL AST tree representing the contents of the given LTL file.
+ 
+// void parseP4LTLFile(CompilerOptions& options) {
+//     FILE* in = nullptr;
+    
+// }
+
 /**
  * Parse P4 source from the string @input, interpreting it as having language
  * version @version. The source is not preprocessed before being parsed; the

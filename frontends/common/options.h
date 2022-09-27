@@ -129,6 +129,9 @@ class CompilerOptions : public Util::Options {
     // strings matched against pass names that should be excluded from Backend passes
     std::vector<cstring> passesToExcludeBackend;
 
+    // LTL specification
+    cstring ltlFile = nullptr;
+
     // Expect that the only remaining argument is the input file.
     void setInputFile();
 
