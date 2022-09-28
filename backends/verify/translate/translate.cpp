@@ -565,6 +565,7 @@ cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement
     if(left=="standard_metadata.egress_spec"){
         res += getIndent()+"standard_metadata.egress_port := " + right+";\n";
         res += getIndent()+"forward := true;\n";
+        currentProcedure->addModifiedGlobalVariables("standard_metadata.egress_port");
         currentProcedure->addModifiedGlobalVariables("forward");
     }
     currentProcedure->addStatement(res);
