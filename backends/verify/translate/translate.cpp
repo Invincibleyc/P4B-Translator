@@ -1996,7 +1996,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             // eg: bugt.bv8(left:int, right:int) : bool{left > right}
             cstring funcName = "bugt."+typeName;
             function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{"
-                + "left < right" + "}\n";
+                + "left > right" + "}\n";
             addFunction(funcName, function);
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
@@ -2004,7 +2004,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             // eg: bult.bv8(left:int, right:int) : bool{left < right}
             cstring funcName = "bult."+typeName;
             function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{"
-                + "left > right" + "}\n";
+                + "left < right" + "}\n";
             addFunction(funcName, function);
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
