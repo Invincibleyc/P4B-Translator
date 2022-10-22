@@ -416,6 +416,10 @@ cstring Translator::toString(const big_int& val){
     return ss.str();
 }
 
+cstring Translator::getTempPrefix(){
+    return TempVariable::getPrefix();
+}
+
 void Translator::translate(const IR::Node *node){
     if (auto typeStruct = node->to<IR::Type_Struct>()) {
         translate(typeStruct);
@@ -992,7 +996,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         cstring arg = "";
         for(auto argument:*methodCallExpression->arguments){
             arg = translate(argument);
+            break;
         }
+        std::cout << arg << std::endl;
         res = arg+".valid := true;\n";
         currentProcedure->addModifiedGlobalVariables(arg+".valid");
         return res;
@@ -1786,6 +1792,96 @@ cstring Translator::translate(const IR::Type_Typedef *typeTypedef){
     }
     else
         addDeclaration("type "+name+" = "+translate(typeTypedef->type)+";\n");
+    return "";
+}
+
+cstring Translator::bitBlastingTempDecl(const cstring &tmpPrefix, int size){
+    for(int i = 0; i < size; i++){
+        cstring tempVar = connect(tmpPrefix, i);
+        addDeclaration("var "+tempVar+" : bool;\n");
+        addGlobalVariables(tempVar);
+        currentProcedure->addModifiedGlobalVariables(tempVar);
+    }
+}
+
+cstring Translator::bitBlastingTempAssign(const cstring &tmpPrefix, int start, int end){
+    for(int i = start; i <= end; i++){
+        currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := false;\n");
+    }
+}
+
+cstring Translator::connect(const cstring &expr, int idx){
+    return expr+SPLIT+toString(idx);
+}
+
+cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
+    if (auto arrayIndex = opBinary->to<IR::ArrayIndex>()) {
+        return translate(arrayIndex);
+    }
+    else if (auto mask = opBinary->to<IR::Mask>()) {
+        return translate(mask);
+    }
+    else if (opBinary->left->type->to<IR::Type_Bits>() || 
+        currentProcedure->declarationVariables.find(translate(opBinary->left)) != currentProcedure->declarationVariables.end()){
+        int size;
+        cstring typeName;
+        if(auto typeBits = opBinary->left->type->to<IR::Type_Bits>()){
+            size = typeBits->size;
+            typeName = translate(opBinary->left->type);
+        }
+        else{
+            size = currentProcedure->declarationVariables[translate(opBinary->left)];
+            typeName = "bv"+toString(size);
+        }
+        if (auto shl = opBinary->to<IR::Shl>()){ 
+            // the 2nd parameter must be constant integer
+            if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>()){
+                cstring tmpPrefix = getTempPrefix();
+                bitBlastingTempDecl(tmpPrefix, size);
+
+                int right = atoi(translate(opBinary->right));
+                cstring left = translate(opBinary->left);
+
+                if(right >= size) bitBlastingTempAssign(tmpPrefix, 0, size-1);
+                else{
+                    bitBlastingTempAssign(tmpPrefix, size-right, size-1);
+                    for(int i = 0; i < size-right; i++){
+                        currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)
+                            +" := "+connect(left, i-right)+";\n");
+                    }
+                }
+                return tmpPrefix;
+            }
+            return "";
+        }
+        else if (auto shr = opBinary->to<IR::Shr>()){
+            // the 2nd parameter must be constant integer
+            if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>()){
+                cstring tmpPrefix = getTempPrefix();
+                bitBlastingTempDecl(tmpPrefix, size);
+
+                int right = atoi(translate(opBinary->right));
+                cstring left = translate(opBinary->left);
+
+                if(right >= size) bitBlastingTempAssign(tmpPrefix, 0, size-1);
+                else{
+                    bitBlastingTempAssign(tmpPrefix, 0, right-1);
+                    for(int i = right; i < size; i++){
+                        currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)
+                            +" := "+connect(left, i-right)+";\n");
+                    }
+                }
+                return tmpPrefix;
+            }
+            return "";
+        }
+        else if (auto add = opBinary->to<IR::Add>()){
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, size);
+            
+            return tmpPrefix;
+        }
+    }
     return "";
 }
 

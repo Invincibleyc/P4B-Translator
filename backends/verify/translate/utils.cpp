@@ -51,3 +51,15 @@ bool isSame(cstring s1, cstring s2){
 	}
 	return false;
 }
+
+int TempVariable::cnt = 0;
+
+int TempVariable::getCnt(){
+	return cnt++;
+}
+
+cstring TempVariable::getPrefix(){
+	std::stringstream ss;
+    ss << getCnt();
+    return TEMP_PREFIX+ss.str();
+}

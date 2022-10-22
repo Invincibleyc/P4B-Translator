@@ -8,6 +8,7 @@
 #include "ir/ir.h"
 #include "boogie_procedure.h"
 #include "boogie_statement.h"
+#include "utils.h"
 #include "bmv2.h"
 #include "backends/verify/translate/options.h"
 
@@ -50,9 +51,12 @@ private:
 public:
 	Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr);
 	void writeToFile();
+	
 	cstring toString();
 	cstring toString(int val);
 	cstring toString(const big_int&);
+	cstring getTempPrefix();
+
 	void addNecessaryProcedures();
 	void addProcedure(BoogieProcedure procedure);
 	void addDeclaration(cstring decl);
@@ -75,6 +79,13 @@ public:
 	void updateMaxBitvectorSize(int size);
 	void updateMaxBitvectorSize(const IR::Type_Bits *typeBits);
 	void addUAFunctions();
+
+	// Bit Blasting
+	cstring bitBlastingTempDecl(const cstring &tmpPrefix, int size);
+	cstring bitBlastingTempAssign(const cstring &tmpPrefix, int start, int end);
+	cstring connect(const cstring &expr, int idx);  // connect expr and idx with SPLIT
+	cstring bitBlasting(const IR::Operation_Binary *opBinary);
+
 	cstring translateUA(const IR::Operation_Binary *opBinary);
 
 	void translate(const IR::Node *node);
@@ -156,6 +167,7 @@ public:
 	cstring translate(const IR::P4Table *p4Table, std::map<cstring, cstring> switchCases);
 	cstring translate(const IR::Parameter *parameter, cstring arg="others");
 	void translate(const IR::ActionList *actionList, cstring arg);
+
 
 };
 

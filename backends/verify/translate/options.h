@@ -24,6 +24,7 @@ class P4VerifyOptions : public CompilerOptions {
 
     bool bv2int = false;
     bool ultimateAutomizer = false;
+    bool bitBlasting = false;
 
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
@@ -90,6 +91,16 @@ class P4VerifyOptions : public CompilerOptions {
                        "use integer instead of bitvector");
 
         /*
+          Using integer is time-costing.
+          Use bit-blasting algorithm instead.
+        */
+        registerOption("--bitBlasting", nullptr,
+                       [this](const char*) {
+                           bitBlasting = true;
+                           return true; },
+                       "use bit-blasting instead of bitvector");
+
+        /*
           Use Ultimate Automizer as backend
         */
         registerOption("--ua", nullptr,
@@ -98,6 +109,7 @@ class P4VerifyOptions : public CompilerOptions {
                            bv2int = true;
                            gotoOrIf = false;
                            whileLoop = true;
+                           bitBlasting = true;
                            return true; },
                        "use Ultimate Automizer as the backend");
 
