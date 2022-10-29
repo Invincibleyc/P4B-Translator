@@ -2910,6 +2910,7 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         auto typeBits = field->type->to<IR::Type_Bits>();
         updateMaxBitvectorSize(typeBits);
         if(options.bitBlasting){
+            addDeclaration("var "+arg+"."+field->name+":int;\n");
             bitBlastingTempDecl(arg+"."+field->name, typeBits->size);
         }
         else if(options.ultimateAutomizer){
