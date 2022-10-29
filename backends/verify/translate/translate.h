@@ -86,6 +86,7 @@ public:
 	cstring exprXor(const cstring &a, const cstring &b);
 	cstring exprXor(const cstring &a, const cstring &b, const cstring &c);
 	cstring connect(const cstring &expr, int idx);  // connect expr and idx with SPLIT
+	cstring integerBitBlasting(int num, int size);
 	cstring bitBlasting(const IR::Operation_Binary *opBinary);
 
 	cstring translateUA(const IR::Operation_Binary *opBinary);

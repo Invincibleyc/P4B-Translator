@@ -1832,6 +1832,21 @@ cstring Translator::connect(const cstring &expr, int idx){
     return expr+SPLIT+toString(idx);
 }
 
+cstring Translator::integerBitBlasting(int num, int size){
+    std::cout << num << " " << size << std::endl;
+    cstring res = getTempPrefix();
+    bitBlastingTempDecl(res, size);
+    for(int i = 0; i < size; i++){
+        bool bit = num&1;
+        num >>= 1;
+        if(bit)
+            currentProcedure->addStatement(getIndent()+connect(res, i)+" := true;\n");
+        else
+            currentProcedure->addStatement(getIndent()+connect(res, i)+" := false;\n");
+    }
+    return res;
+}
+
 cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
     if (auto arrayIndex = opBinary->to<IR::ArrayIndex>()) {
         return translate(arrayIndex);
@@ -1916,6 +1931,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
             currentProcedure->addStatement(getIndent()+connect(tmpPrefix, 0)+" := "
                 +exprXor(connect(left, 0), connect(right, 0))+";\n");
             currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[0], 0)+" := "
@@ -1952,7 +1973,13 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, size);
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
-            
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
+
             // -right
             cstring negRight = getTempPrefix();
             bitBlastingTempDecl(negRight, size);
@@ -2009,6 +2036,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
@@ -2028,6 +2061,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
@@ -2047,6 +2086,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
@@ -2071,6 +2116,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix2, size+1);
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i <= size; i++){
                 cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
@@ -2112,6 +2163,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix2, size+1);
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i <= size; i++){
                 cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
@@ -2152,6 +2209,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix2, size);
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i < size; i++){
                 cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
@@ -2187,6 +2250,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix2, size);
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
 
             for(int i = 0; i < size; i++){
                 cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
@@ -2216,6 +2285,13 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, 1);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
+
             cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
             for(int i = 0; i < size; i++){
                 stmt += "("+connect(left, i)+"=="+connect(right, i)+")";
@@ -2234,6 +2310,13 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, 1);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            if(isNumber(left)){
+                left = integerBitBlasting(atoi(left), size);
+            }
+            if(isNumber(right)){
+                right = integerBitBlasting(atoi(right), size);
+            }
+
             cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
             for(int i = 0; i < size; i++){
                 stmt += "("+connect(left, i)+"!="+connect(right, i)+")";
