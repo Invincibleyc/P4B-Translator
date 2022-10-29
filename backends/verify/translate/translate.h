@@ -83,6 +83,8 @@ public:
 	// Bit Blasting
 	cstring bitBlastingTempDecl(const cstring &tmpPrefix, int size);
 	cstring bitBlastingTempAssign(const cstring &tmpPrefix, int start, int end);
+	cstring exprXor(const cstring &a, const cstring &b);
+	cstring exprXor(const cstring &a, const cstring &b, const cstring &c);
 	cstring connect(const cstring &expr, int idx);  // connect expr and idx with SPLIT
 	cstring bitBlasting(const IR::Operation_Binary *opBinary);
 

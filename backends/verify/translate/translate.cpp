@@ -340,7 +340,7 @@ void Translator::addUAFunctions(){
 }
 
 void Translator::writeToFile(){
-    if(options.ultimateAutomizer){
+    if(options.ultimateAutomizer && !options.bitBlasting){
         addUAFunctions();
     }
 
@@ -998,7 +998,6 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             arg = translate(argument);
             break;
         }
-        std::cout << arg << std::endl;
         res = arg+".valid := true;\n";
         currentProcedure->addModifiedGlobalVariables(arg+".valid");
         return res;
@@ -1632,6 +1631,13 @@ cstring Translator::translate(const IR::Cast *cast){
 }
 
 cstring Translator::translate(const IR::Slice *slice){
+    // if(options.bitBlasting){
+    //     cstring res = getTempPrefix();
+    //     cstring expr = translate(slice->e0);
+    //     int start = atoi(translate(slice->e1));
+    //     int end = atoi(translate(slice->e2));
+    //     return res;
+    // }
     if(options.ultimateAutomizer){
         cstring res = "";
         cstring expr = translate(slice->e0);
@@ -1800,7 +1806,8 @@ cstring Translator::bitBlastingTempDecl(const cstring &tmpPrefix, int size){
         cstring tempVar = connect(tmpPrefix, i);
         addDeclaration("var "+tempVar+" : bool;\n");
         addGlobalVariables(tempVar);
-        currentProcedure->addModifiedGlobalVariables(tempVar);
+        if(currentProcedure != nullptr)
+            currentProcedure->addModifiedGlobalVariables(tempVar);
     }
 }
 
@@ -1808,6 +1815,17 @@ cstring Translator::bitBlastingTempAssign(const cstring &tmpPrefix, int start, i
     for(int i = start; i <= end; i++){
         currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := false;\n");
     }
+}
+
+cstring Translator::exprXor(const cstring &a, const cstring &b){
+    // (!a&b || a&!b)
+    return "(!"+a+"&"+b+" || "+a+"&"+"!"+b+")";
+}
+
+cstring Translator::exprXor(const cstring &a, const cstring &b, const cstring &c){
+    // (!a&!b&c || !a&b&!c || a&!b&!c || a&b&c)
+    return "(!"+a+"&!"+b+"&"+c+" || !"+a+"&"+b+"!"+c+" || "+
+           a+"&!"+b+"&!"+c+ " || "+a+"&"+b+"&"+c+")";
 }
 
 cstring Translator::connect(const cstring &expr, int idx){
@@ -1875,10 +1893,354 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             return "";
         }
+        else if (auto mul = opBinary->to<IR::Mul>()){
+            return "";
+        }
         else if (auto add = opBinary->to<IR::Add>()){
+            /*  Example:
+                    vector<bool> res(a.size(), false);
+                    res[0] = a[0]^b[0];        bool tmp1 = a[0]&b[0];
+                    res[1] = a[1]^b[1]^tmp1;   bool tmp2 = a[1]&b[1] || a[1]&tmp1 || b[1]&tmp1;
+                    res[2] = a[2]^b[2]^tmp2;   bool tmp3 = a[2]&b[2] || a[2]&tmp1 || b[2]&tmp2;
+                    return res;
+                Note that:
+                    a[0]^b[0] = a[0]&!b[0] || !a[0]&b[0]
+            */
             cstring tmpPrefix = getTempPrefix();
             bitBlastingTempDecl(tmpPrefix, size);
+
+            std::vector<cstring> tmpPrefixes;
+            for(int i = 0; i < size; i++){
+                tmpPrefixes.push_back(getTempPrefix());
+                bitBlastingTempDecl(tmpPrefixes.back(), 1);
+            }
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            currentProcedure->addStatement(getIndent()+connect(tmpPrefix, 0)+" := "
+                +exprXor(connect(left, 0), connect(right, 0))+";\n");
+            currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[0], 0)+" := "
+                +connect(left, 0)+"&"+connect(right, 0)+";\n");
+            for(int i = 1; i < size; i++){
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
+                    +exprXor(connect(left, i), connect(right, i), connect(tmpPrefixes[i-1], 0))+";\n");
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[i], 0)+" := "
+                    +connect(left, i)+"&"+connect(right, i)+ " || "
+                    +connect(left, i)+"&"+connect(tmpPrefixes[i-1], 0)+" || "
+                    +connect(right, i)+"&"+connect(tmpPrefixes[i-1], 0)+";\n");
+            }
+            return tmpPrefix;
+        }
+        else if (auto addSat = opBinary->to<IR::AddSat>()) {
+            return "";
+        }
+        else if (auto sub = opBinary->to<IR::Sub>()) {
+            /*  Example:
+                vector<bool> tmp(b.size()), res(b.size());
+                // tmp = ~b+1
+                tmp[0] = (!b[0])^1;     bool tmp1 = (!b[0])&1;
+                tmp[1] = (!b[1])^tmp1;  bool tmp2 = (!b[1])&tmp1;
+                tmp[2] = (!b[2])^tmp2;  bool tmp3 = (!b[2])&tmp2;
+                // a + tmp
+                res[0] = a[0]^tmp[0];        bool tmp4 = a[0]&tmp[0];
+                res[1] = a[1]^tmp[1]^tmp4;   bool tmp5 = a[1]&tmp[1] || a[1]&tmp4 || tmp[1]&tmp4;
+                res[2] = a[2]^tmp[2]^tmp5;   bool tmp6 = a[2]&tmp[2] || a[2]&tmp5 || tmp[2]&tmp5;
+                return res;
+            */
+
+            // res = left-right
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, size);
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
             
+            // -right
+            cstring negRight = getTempPrefix();
+            bitBlastingTempDecl(negRight, size);
+
+            cstring negRightTmp = getTempPrefix();
+            bitBlastingTempDecl(negRightTmp, size);
+            
+            // negRight[0] := (!right[0])^true
+            currentProcedure->addStatement(getIndent()+connect(negRight, 0)+" := "+
+                exprXor("(!"+connect(right, 0)+")", "true")+";\n");
+            // negRightTmp[0] := (!right[0])&true
+            currentProcedure->addStatement(getIndent()+connect(negRightTmp, 0)+" := (!"+
+                connect(right, 0)+") & true;\n");
+            for(int i = 1; i < size; i++){
+                // negRight[i] := (!right[i]) ^ negRightTmp[i-1]
+                currentProcedure->addStatement(getIndent()+connect(negRight, i)+" := "+
+                    exprXor("(!"+connect(right, i)+")", connect(negRightTmp, i-1))+";\n");
+                // negRightTmp[i] := (!right[i]) & negRightTmp[i-1]
+                currentProcedure->addStatement(getIndent()+connect(negRight, i)+" := (!"+
+                    connect(right, i)+") & "+connect(negRightTmp, i-1)+";\n");
+            }
+
+            cstring resTmp = getTempPrefix();
+            bitBlastingTempDecl(resTmp, size);
+            // res[0] := left[0] ^ negRight[0]
+            currentProcedure->addStatement(getIndent()+connect(tmpPrefix, 0)+" := "+
+                exprXor(connect(left, 0), connect(negRight, 0))+";\n");
+            // resTmp[0] := left[0] & negRight[0]
+            currentProcedure->addStatement(getIndent()+connect(resTmp, 0)+" := "+
+                connect(left, 0)+" & "+connect(negRight, 0)+";\n");
+            for(int i = 1; i < size; i++){
+                // res[i] := left[i] ^ negRight[i] ^ resTmp[i-1]
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "+
+                    exprXor(connect(left, i), connect(negRight, i), connect(resTmp, i-1))+";\n");
+                currentProcedure->addStatement(getIndent()+connect(resTmp, i)+" := "+
+                    connect(left, i)+" & "+connect(right, i)+" || "+
+                    connect(left, i)+" & "+connect(resTmp, i-1)+" || "+
+                    connect(right, i)+" & "+connect(resTmp, i-1)+";\n");
+            }
+
+            return tmpPrefix;
+        }
+        else if (auto subSat = opBinary->to<IR::SubSat>()) {
+            return "";
+        }
+        else if (auto bAnd = opBinary->to<IR::BAnd>()) {
+            /*  Example:
+                    vector<bool> res(a.size(), false);
+                    res[0] = a[0]&b[0];
+                    res[1] = a[1]&b[1];
+                    res[2] = a[2]&b[2];
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, size);
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i < size; i++){
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
+                    +connect(left, i)+"&"+connect(right, i)+";\n");
+            }
+            
+            return tmpPrefix;
+        }
+        else if (auto bOr = opBinary->to<IR::BAnd>()) {
+            /*  Example:
+                    vector<bool> res(a.size(), false);
+                    res[0] = a[0]|b[0];
+                    res[1] = a[1]|b[1];
+                    res[2] = a[2]|b[2];
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, size);
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i < size; i++){
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
+                    +connect(left, i)+"|"+connect(right, i)+";\n");
+            }
+            
+            return tmpPrefix;
+        }
+        else if (auto bXor = opBinary->to<IR::BXor>()) {
+            /*  Example:
+                    vector<bool> res(a.size(), false);
+                    res[0] = a[0]^b[0];
+                    res[1] = a[1]^b[1];
+                    res[2] = a[2]^b[2];
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, size);
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i < size; i++){
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
+                    +exprXor(connect(left, i), connect(right, i))+";\n");
+            }
+            
+            return tmpPrefix;
+        }
+        else if (auto geq = opBinary->to<IR::Geq>()) {
+            /*  Example:
+                    bool tmp1 = a[2] && !b[2];
+                    bool tmp2 = (a[2] == b[2]) && (a[1] && !b[1]);
+                    bool tmp3 = (a[2] == b[2]) && (a[1] == b[1]) && (a[0] && !b[0]);
+                    bool tmp4 = (a[2] == b[2]) && (a[1] == b[1]) && (a[0] == b[0]);
+                    bool res = tmp1 || tmp2 || tmp3 || tmp4;
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+
+            cstring tmpPrefix2 = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix2, size+1);
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i <= size; i++){
+                cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
+                for(int j = 0; j < i; j++){
+                    stmt += "("+connect(left, size-1-j)+"=="+connect(right, size-1-j)+")";
+                    if(j < i-1) stmt += " && ";
+                }
+                if(i == size){
+                    stmt += ";\n";
+                }
+                else{
+                    if(i != 0) stmt += " && ";
+                    stmt += "("+connect(left, size-1-i)+"&&"+"!"+connect(right, size-1-i)+");\n";
+                }
+                currentProcedure->addStatement(stmt);
+            }
+            cstring stmt = getIndent()+connect(tmpPrefix, 0) + " := ";
+            for(int i = 0; i <= size; i++){
+                stmt += connect(tmpPrefix2, i);
+                if(i < size) stmt += " || ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
+            return tmpPrefix;
+        }
+        else if (auto leq = opBinary->to<IR::Leq>()) {
+            /*  Example:
+                    bool tmp1 = !a[2] && b[2];
+                    bool tmp2 = (a[2] == b[2]) && (!a[1] && b[1]);
+                    bool tmp3 = (a[2] == b[2]) && (a[1] == b[1]) && (!a[0] && b[0]);
+                    bool tmp4 = (a[2] == b[2]) && (a[1] == b[1]) && (a[0] == b[0]);
+                    bool res = tmp1 || tmp2 || tmp3 || tmp4;
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+
+            cstring tmpPrefix2 = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix2, size+1);
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i <= size; i++){
+                cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
+                for(int j = 0; j < i; j++){
+                    stmt += "("+connect(left, size-1-j)+"=="+connect(right, size-1-j)+")";
+                    if(j < i-1) stmt += " && ";
+                }
+                if(i == size){
+                    stmt += ";\n";
+                }
+                else{
+                    if(i != 0) stmt += " && ";
+                    stmt += "(!"+connect(left, size-1-i)+"&&"+connect(right, size-1-i)+");\n";
+                }
+                currentProcedure->addStatement(stmt);
+            }
+            cstring stmt = getIndent()+connect(tmpPrefix, 0) + " := ";
+            for(int i = 0; i <= size; i++){
+                stmt += connect(tmpPrefix2, i);
+                if(i < size) stmt += " || ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
+            return tmpPrefix;
+        }
+        else if (auto grt = opBinary->to<IR::Grt>()) {
+            /*  Example:
+                    bool tmp1 = a[2] && !b[2];
+                    bool tmp2 = (a[2] == b[2]) && (a[1] && !b[1]);
+                    bool tmp3 = (a[2] == b[2]) && (a[1] == b[1]) && (a[0] && !b[0]);
+                    bool res = tmp1 || tmp2 || tmp3;
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+
+            cstring tmpPrefix2 = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix2, size);
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i < size; i++){
+                cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
+                for(int j = 0; j < i; j++){
+                    stmt += "("+connect(left, size-1-j)+"=="+connect(right, size-1-j)+")";
+                    if(j < i-1) stmt += " && ";
+                }
+                if(i != 0) stmt += " && ";
+                stmt += "("+connect(left, size-1-i)+"&&"+"!"+connect(right, size-1-i)+");\n";
+                currentProcedure->addStatement(stmt);
+            }
+            cstring stmt = getIndent()+connect(tmpPrefix, 0) + " := ";
+            for(int i = 0; i < size; i++){
+                stmt += connect(tmpPrefix2, i);
+                if(i < size-1) stmt += " || ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
+            return tmpPrefix;
+        }
+        else if (auto lss = opBinary->to<IR::Lss>()) {
+            /*  Example:
+                    bool tmp1 = !a[2] && b[2];
+                    bool tmp2 = (a[2] == b[2]) && (!a[1] && b[1]);
+                    bool tmp3 = (a[2] == b[2]) && (a[1] == b[1]) && (!a[0] && b[0]);
+                    bool res = tmp1 || tmp2 || tmp3;
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+
+            cstring tmpPrefix2 = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix2, size);
+
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+
+            for(int i = 0; i < size; i++){
+                cstring stmt = getIndent()+connect(tmpPrefix2, i) + " := ";
+                for(int j = 0; j < i; j++){
+                    stmt += "("+connect(left, size-1-j)+"=="+connect(right, size-1-j)+")";
+                    if(j < i-1) stmt += " && ";
+                }
+                if(i != 0) stmt += " && ";
+                stmt += "(!"+connect(left, size-1-i)+"&&"+connect(right, size-1-i)+");\n";
+                currentProcedure->addStatement(stmt);
+            }
+            cstring stmt = getIndent()+connect(tmpPrefix, 0) + " := ";
+            for(int i = 0; i < size; i++){
+                stmt += connect(tmpPrefix2, i);
+                if(i < size-1) stmt += " || ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
+            return tmpPrefix;
+        }
+        else if (auto equ = opBinary->to<IR::Equ>()) {
+            /*  Example:
+                    bool res;
+                    res = a[0]==b[0] && a[1]==b[1] && a[2]==b[2];
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
+            for(int i = 0; i < size; i++){
+                stmt += "("+connect(left, i)+"=="+connect(right, i)+")";
+                if(i != size-1) stmt += " && ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
+            return tmpPrefix;
+        }
+        else if (auto neq = opBinary->to<IR::Neq>()) {
+            /*  Example:
+                    bool res;
+                    res = a[0]!=b[0] && a[1]!=b[1] && a[2]!=b[2];
+                    return res;
+            */
+            cstring tmpPrefix = getTempPrefix();
+            bitBlastingTempDecl(tmpPrefix, 1);
+            cstring left = translate(opBinary->left), right = translate(opBinary->right);
+            cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
+            for(int i = 0; i < size; i++){
+                stmt += "("+connect(left, i)+"!="+connect(right, i)+")";
+                if(i != size-1) stmt += " || ";
+            }
+            stmt += ";\n";
+            currentProcedure->addStatement(stmt);
             return tmpPrefix;
         }
     }
@@ -2109,7 +2471,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
         else if (auto equ = opBinary->to<IR::Equ>()) {
             return "(" + translate(opBinary->left) + " == " + translate(opBinary->right) + ")";
         }
-        else if (auto equ = opBinary->to<IR::Neq>()) {
+        else if (auto neq = opBinary->to<IR::Neq>()) {
             return "(" + translate(opBinary->left) + " != " + translate(opBinary->right) + ")";
         }
     }
@@ -2119,6 +2481,10 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
 }
 
 cstring Translator::translate(const IR::Operation_Binary *opBinary){
+    if(options.bitBlasting){
+        return bitBlasting(opBinary);
+    }
+
     if(options.ultimateAutomizer){
         return translateUA(opBinary);
     }
@@ -2390,7 +2756,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
     }
 
     // TOFO: rename
-    std::cout << "name: " << name << std::endl;
+    // std::cout << "name: " << name << std::endl;
     if(typeName=="register"){
 
         // size
@@ -2543,7 +2909,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     else if(field->type->node_type_name() == "Type_Bits"){
         auto typeBits = field->type->to<IR::Type_Bits>();
         updateMaxBitvectorSize(typeBits);
-        if(options.ultimateAutomizer){
+        if(options.bitBlasting){
+            bitBlastingTempDecl(arg+"."+field->name, typeBits->size);
+        }
+        else if(options.ultimateAutomizer){
             addDeclaration("var "+arg+"."+field->name+":int;\n");
         }
         else
@@ -2592,22 +2961,35 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     for(const IR::StructField* field:typeHeader->fields){
         translate(field, arg);
         cstring fieldName = arg + "." + field->name;
-        havocProcedure.addStatement("    havoc "+fieldName+";\n");
-
-        if(auto typeBits = field->type->to<IR::Type_Bits>()){
-            havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
-                fieldName + " <= power_2_" +toString(typeBits->size) +"() );\n");
-        }
-
-        havocProcedure.addModifiedGlobalVariables(fieldName);
 
         cstring oldFieldName = "_old_"+fieldName;
         translate(field, "_old_"+arg);
-        havocProcedure.addStatement("    "+oldFieldName+" := "+
-           fieldName +";\n");
-        havocProcedure.addModifiedGlobalVariables(oldFieldName);
 
+        if(options.bitBlasting){
+            if(auto typeBits = field->type->to<IR::Type_Bits>()){
+                for(int i = 0; i < typeBits->size; i++){
+                    havocProcedure.addStatement("    havoc "+connect(fieldName, i)+";\n");
+                    havocProcedure.addModifiedGlobalVariables(connect(fieldName, i));
+                }
+                for(int i = 0; i < typeBits->size; i++){
+                    havocProcedure.addStatement("    "+connect(oldFieldName, i)+" := "+
+                        connect(fieldName, i) +";\n");
+                    havocProcedure.addModifiedGlobalVariables(connect(oldFieldName, i));
+                }
+            }
+        }
+        else{
+            havocProcedure.addStatement("    havoc "+fieldName+";\n");
+            if(auto typeBits = field->type->to<IR::Type_Bits>()){
+                havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
+                    fieldName + " <= power_2_" +toString(typeBits->size) +"() );\n");
+            }
+            havocProcedure.addModifiedGlobalVariables(fieldName);
 
+            havocProcedure.addStatement("    "+oldFieldName+" := "+
+               fieldName +";\n");
+            havocProcedure.addModifiedGlobalVariables(oldFieldName);
+        }
     }
 }
 
