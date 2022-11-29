@@ -16,11 +16,14 @@ const cstring TEMP_PREFIX = "$tmp$";
 
 const cstring SPLIT = "$";
 
+const int EGRESS_SPEC_SIZE = 9;
+
 class TempVariable{
 public:
 	static int cnt;
 	static int getCnt();
 	static cstring getPrefix();
+	static cstring getPrefix(cstring prefix);
 };
 
 #endif

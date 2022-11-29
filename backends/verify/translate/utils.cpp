@@ -63,3 +63,9 @@ cstring TempVariable::getPrefix(){
     ss << getCnt();
     return TEMP_PREFIX+ss.str();
 }
+
+cstring TempVariable::getPrefix(cstring prefix){
+	std::stringstream ss;
+    ss << getCnt();
+    return prefix+ss.str();
+}

@@ -17,6 +17,10 @@ class P4VerifyOptions : public CompilerOptions {
     bool havocStatefulElements = false;
     bool addInvariant = false;
     cstring outputBplFile = nullptr;
+
+    bool p4ltlSpec = false;
+    cstring p4ltlFile = nullptr;
+
     bool bmv2cmds = false;
     cstring cmdFile = nullptr;
 
@@ -112,6 +116,25 @@ class P4VerifyOptions : public CompilerOptions {
                            bitBlasting = true;
                            return true; },
                        "use Ultimate Automizer as the backend");
+
+        registerOption("--ua2", nullptr,
+                       [this](const char*) {
+                           ultimateAutomizer = true;
+                           bv2int = true;
+                           gotoOrIf = false;
+                           whileLoop = true;
+                           bitBlasting = false;
+                           return true; },
+                       "use Ultimate Automizer as the backend");
+
+        /*
+        */
+        registerOption("--p4ltl", "file",
+                      [this](const char* arg) { 
+                          p4ltlFile = arg;
+                          p4ltlSpec = true;
+                          return true; },
+                      "P4LTL specification for the P4 program");
 
         /*
           Options for invariant generation

@@ -1,0 +1,197 @@
+%skeleton "lalr1.cc" /* -*-C++-*- */
+%require "3.0.0"
+
+%defines 
+%define api.namespace {P4LTL}
+%define parser_class_name {P4LTLParser}
+
+%define api.value.type variant
+
+%parse-param {Scanner& scanner}
+%parse-param {AstNode*& root}
+
+// Enable verbose error reporting.
+%define parse.error verbose
+
+%code requires {
+#include <iostream>
+#include <string>
+#include "frontends/parsers/p4ltl/p4ltlast.hpp"
+namespace P4LTL
+{
+    class Scanner;
+    // static AstNode* root = nullptr;
+}
+}   // end %code
+
+%code
+{
+    #include "frontends/parsers/p4ltl/p4ltllexer.hpp"    
+    #undef yylex
+    #define yylex(x) scanner.lex(x)
+}
+
+// exprinals (tokens returned by the scanner)
+%token AP COMMA LPAR RPAR LBRACKET RBRACKET 
+%token APPLY DROP FWD VALID
+%token ALWAYS EVENTUALLY UNTIL WEAKUNTIL RELEASE NEXT
+%token AND OR IMPLIES NEG EQ NEQ
+%token PLUS MINUS GT GEQ LT LEQ
+%token OLD KEY TRUE FALSE
+%token<char*>     NAME
+%token<int> INT
+
+// Non-exprinals
+%type<AstNode*>  texpr predicate term identifier p4ltl
+
+// precedence
+%right IMPLIES
+%left OR
+%left AND
+%left UNTIL WEAKUNTIL RELEASE
+%right ALWAYS EVENTUALLY
+%right NEXT
+%left EQ NEQ
+%left LT LEQ GEQ GT
+%left PLUS MINUS
+%left MULTIPLY
+%left NEG
+
+%start p4ltl
+
+%%
+/*rules*/
+
+p4ltl
+    : texpr
+    {$$ = $1; root = $$;
+    }
+
+texpr
+	: texpr AND texpr
+	{$$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::And, $1, $3);}
+	
+	| texpr OR texpr
+	{$$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Or, $1, $3); }
+	
+	| texpr IMPLIES texpr
+	{$$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Implies, $1, $3); }
+	
+	| texpr UNTIL texpr
+	{$$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Until, $1, $3); }
+	
+	| texpr WEAKUNTIL texpr
+	{ // a W b == Ga || a U b
+        AstNode* globala = new UnaryTemporalOperator(UnaryTemporalOperator::UnaryTemporalOperatorType::Global, $1);
+        AstNode* aUb = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Until, $1, $3);
+        $$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Or, 
+                globala, aUb);
+    }
+	
+	| texpr RELEASE texpr
+	{$$ = new BinaryTemporalOperator(BinaryTemporalOperator::BinaryTemporalOperatorType::Release, $1, $3); }
+	
+	| ALWAYS LPAR texpr RPAR
+	{$$ = new UnaryTemporalOperator(UnaryTemporalOperator::UnaryTemporalOperatorType::Global, $3);}
+	
+	| EVENTUALLY LPAR texpr RPAR
+	{$$ = new UnaryTemporalOperator(UnaryTemporalOperator::UnaryTemporalOperatorType::Final, $3); }
+	
+	| NEXT LPAR texpr RPAR
+	{$$ = new UnaryTemporalOperator(UnaryTemporalOperator::UnaryTemporalOperatorType::Next, $3); }
+	
+	| NEG texpr
+	{$$ = new UnaryTemporalOperator(UnaryTemporalOperator::UnaryTemporalOperatorType::Not, $2); }
+	
+	| LPAR texpr RPAR
+	{$$ = $2; }
+	
+	| AP LPAR predicate RPAR
+	{$$ = new P4LTLAtomicProposition($3); }
+	;
+
+predicate  
+	: DROP
+	{$$ = new Drop(); }
+	| FWD LPAR term RPAR
+	{$$ = new Forward($3); }
+	| APPLY LPAR NAME RPAR
+	{$$ = new Apply($3); }
+	| APPLY LPAR NAME COMMA NAME RPAR
+	{$$ = new Apply($3, $5); }
+	| VALID LPAR NAME RPAR
+	{$$ = new Valid($3); }
+	| term EQ term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::eq, $1, $3); }
+	| term GT term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::gt, $1, $3); }
+	| term GEQ term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::geq, $1, $3); }
+	| term NEQ term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::neq, $1, $3); }
+	| term LT term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::lt, $1, $3); }
+	| term LEQ term
+	{$$ = new ExtendedComparativeOperator(ExtendedComparativeOperator::ExtendedComparativeOperatorType::leq, $1, $3); }
+	
+	| predicate AND predicate
+	{$$ = new BinaryPredicateOperator(BinaryPredicateOperator::BinaryPredicateOperatorType::And, $1, $3); }
+	| predicate OR predicate
+	{$$ = new BinaryPredicateOperator(BinaryPredicateOperator::BinaryPredicateOperatorType::Or, $1, $3); }
+	| predicate IMPLIES predicate
+	{$$ = new BinaryPredicateOperator(BinaryPredicateOperator::BinaryPredicateOperatorType::Implies, $1, $3); }
+	| LPAR predicate RPAR
+	{$$ = $2; }
+	| NEG predicate
+	{$$ = new UnaryPredicateOperator(UnaryPredicateOperator::UnaryPredicateOperatorType::Not, $2); }
+	;
+
+term
+	: identifier LBRACKET term RBRACKET
+	{// currently we don't support multiaccessor
+        $$ = new ArrayAccessExprssion($1,$3); }
+	| OLD LPAR NAME RPAR
+	{$$ = new OldExpression($3); }
+	| KEY LPAR NAME COMMA NAME RPAR
+	{$$ = new Key($3, $5); }
+	| term PLUS term
+	{$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Plus, $1, $3); }
+	| term MINUS term
+	{$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Minus, $1, $3); }
+	| term MULTIPLY term
+	{$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Multiply, $1, $3); }
+    | LPAR term RPAR
+	{$$ = $2; }
+	| identifier	
+	{$$ = $1; }
+	| INT
+	{$$ = new IntLiteral($1); }
+	| TRUE
+	{$$ = new BooleanLiteral(true); }
+	| FALSE
+	{$$ = new BooleanLiteral(false); }
+	;
+
+identifier 
+    :NAME
+	{$$ = new Name($1); };	
+
+%%
+/* void yyerror (const char *message)
+{
+	fprintf(stderr, "Error: %s\n", message);
+} */
+
+void P4LTL::P4LTLParser::error(const std::string& msg) {
+    std::cerr << msg << '\n';
+}
+
+/* int main()
+{
+    yyparse();
+    // std::cout << "Parse result: " <<  yyparse() << std::endl;
+    if(root != nullptr)
+        std::cout << "P4LTL: " + root->toString() << std::endl;
+    else
+        std::cout << "Root is empty. But Why?" << std::endl;
+} */

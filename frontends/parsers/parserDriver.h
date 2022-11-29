@@ -311,4 +311,24 @@ class V1ParserDriver final : public P4::AbstractParserDriver {
 
 }  // namespace V1
 
+// namespace P4LTL {
+
+// class P4LTLLexer;
+// class P4LTLParser;
+
+// /// A ParserDriver that can parse P4LTL specification.
+// class P4LTLParserDriver final : public P4::AbstractParserDriver {
+//  protected:
+//     friend class PtLTL::P4LTLLexer;
+//     friend class P4LTL::V1Parser;
+
+//  private:
+//     /// The currently active pragmas.
+//     IR::Vector<IR::Annotation> currentPragmas;
+
+//     P4LTLParserDriver();
+// };
+
+// }  // namespace P4LTL
+
 #endif /* _FRONTENDS_PARSERS_PARSERDRIVER_H_ */

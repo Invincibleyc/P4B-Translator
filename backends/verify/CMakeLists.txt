@@ -32,6 +32,8 @@ set (P4VERIFY_BACKEND_TRANSLATE_SRCS
   translate/boogie_statement.cpp
   translate/bmv2.h
   translate/bmv2.cpp
+  translate/p4ltl_utils.h
+  translate/p4ltl_utils.cpp
   translate/utils.h
   translate/utils.cpp
 )

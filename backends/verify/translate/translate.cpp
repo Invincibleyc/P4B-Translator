@@ -78,6 +78,12 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnal
     maxBitvectorSize = -1;
 
     addNecessaryProcedures();
+
+    ltlTranslator = new P4LTLTranslator(this);
+}
+
+BoogieProcedure Translator::getMainProcedure(){
+    return mainProcedure;
 }
 
 void Translator::addNecessaryProcedures(){
@@ -154,6 +160,7 @@ void Translator::addNecessaryProcedures(){
     reject.addDeclaration("    ensures drop==true;\n");
     reject.addModifiedGlobalVariables("drop");
     addProcedure(reject);
+
 }
 
 void Translator::addProcedure(BoogieProcedure procedure){
@@ -252,12 +259,34 @@ void Translator::addPred(cstring proc, cstring predProc){
     pred[proc].push_back(predProc);
 }
 
+P4LTL::AstNode* Translator::getP4LTLSpec(cstring key){
+    return p4ltlSpec[key];
+}
+
+void Translator::setP4LTLSpec(cstring key, P4LTL::AstNode* root){
+    p4ltlSpec[key] = root;
+}
+
+void Translator::setP4LTLFreeVars(cstring decl){
+    ltlTranslator->createFreeVariables(decl);
+}
+
 void Translator::updateMaxBitvectorSize(int size){
     maxBitvectorSize = (maxBitvectorSize > size) ? maxBitvectorSize : size;
 }
 
 void Translator::updateMaxBitvectorSize(const IR::Type_Bits *typeBits){
     updateMaxBitvectorSize(typeBits->size);
+}
+
+void Translator::updateVariableSize(cstring name, int n){
+    // std::cout << "update size: " << name << " " << n << std::endl;
+    sizes[name] = n;
+}
+
+int Translator::getSize(cstring name){
+    if(sizes.find(name) != sizes.end()) return sizes[name];
+    else return -1;
 }
 
 void Translator::addUAFunctions(){
@@ -332,14 +361,53 @@ void Translator::addUAFunctions(){
         }
     }
 
-    declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)\%2)/2}\n";
-    declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)\%2}\n";
-    declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)\%2+((left+right)-((left+right)\%2))/2}\n";
-    declaration += "function {:inline true} bnot(num:int) : int{1-num\%2}\n";
+    // declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)\%2)/2}\n";
+    declaration += "function band(left:int, right:int) : int{if(left>0 && right>0) then 1 else 0}\n";
+    // declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)\%2}\n";
+    declaration += "function bxor(left:int, right:int) : int{if((left==0&&right>0) || (left>0&&right==0)) then 1 else 0}\n";
+    // declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)\%2+((left+right)-((left+right)\%2))/2}\n";
+    declaration += "function bor(left:int, right:int) : int{if(left>0 || right>0) then 1 else 0}\n";
+    // declaration += "function {:inline true} bnot(num:int) : int{1-num\%2}\n";
+    declaration += "function bnot(num:int) : int{if(num == 0) then 1 else 0}\n";
     
 }
 
 void Translator::writeToFile(){
+    if(options.p4ltlSpec){
+        for(cstring str:P4LTL_KEYS){
+            if(p4ltlSpec.find(str) != p4ltlSpec.end()){
+                cstring cont = ltlTranslator->translateP4LTL(p4ltlSpec[str]);
+                std::cout << str << std::endl << " " << cont << std::endl;
+                out << str << " " << cont << "\n";
+            }
+        }
+        out << "\n";
+        for(auto item:ltlTranslator->getFreeVariables()){
+            if(isGlobalVariable(item.first)){
+                std::cout << "ERROR: "+item.first+" is a global variable. Please change the name.\n";
+                std::abort();
+            }
+            havocProcedure.addStatement("    haovc "+item.second+";\n");
+            havocProcedure.addModifiedGlobalVariables(item.second);
+        }
+        for(cstring variable:ltlTranslator->getVariables()){
+            addGlobalVariables(variable);
+            mainProcedure.addModifiedGlobalVariables(variable);
+        }
+        cstring call = mainProcedure.lastStatement();
+        mainProcedure.removeLastStatement();
+        mainProcedure.addStatement("    while(true){\n");
+        mainProcedure.addStatement(call);
+        for(cstring stmt:ltlTranslator->getStatements()){
+            mainProcedure.addStatement("        "+stmt);
+        }
+        mainProcedure.addStatement("    }\n");
+        for(cstring declaration:ltlTranslator->getDeclarations()){
+            addDeclaration(declaration);
+        }
+    }
+
+
     if(options.ultimateAutomizer && !options.bitBlasting){
         addUAFunctions();
     }
@@ -376,6 +444,7 @@ void Translator::writeToFile(){
         }
         queue.pop();
     }
+
 
     out << declaration;
     // out << "\n";
@@ -563,16 +632,36 @@ cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement
     //     }
     // }
     // else
-        updateModifiedVariables(left);
-    res = getIndent()+left+" := "
-        +right+";\n";
-    if(left=="standard_metadata.egress_spec"){
-        res += getIndent()+"standard_metadata.egress_port := " + right+";\n";
-        res += getIndent()+"forward := true;\n";
-        currentProcedure->addModifiedGlobalVariables("standard_metadata.egress_port");
-        currentProcedure->addModifiedGlobalVariables("forward");
+    if(options.bitBlasting && assignmentStatement->left->type->to<IR::Type_Bits>()){
+        auto typeBits = assignmentStatement->left->type->to<IR::Type_Bits>();
+        int size = typeBits->size;
+        for(int i = 0; i < size; i++){
+            updateModifiedVariables(connect(left, i));
+            currentProcedure->addStatement(getIndent()+connect(left, i)+" := "+
+                connect(right, i)+";\n");
+        }
+        if(left=="standard_metadata.egress_spec"){
+            for(int i = 0; i < EGRESS_SPEC_SIZE; i++){
+                currentProcedure->addStatement(getIndent()+connect("standard_metadata.egress_port", i)+
+                    " := "+connect(right, i)+";\n");
+                currentProcedure->addModifiedGlobalVariables(connect("standard_metadata.egress_port", i));
+            }
+            res += getIndent()+"forward := true;\n";
+            currentProcedure->addModifiedGlobalVariables("forward");
+        }
     }
-    currentProcedure->addStatement(res);
+    else{
+        updateModifiedVariables(left);
+        res = getIndent()+left+" := "
+            +right+";\n";
+        if(left=="standard_metadata.egress_spec"){
+            res += getIndent()+"standard_metadata.egress_port := " + right+";\n";
+            res += getIndent()+"forward := true;\n";
+            currentProcedure->addModifiedGlobalVariables("standard_metadata.egress_port");
+            currentProcedure->addModifiedGlobalVariables("forward");
+        }
+        currentProcedure->addStatement(res);
+    }
     return "";
 }
 
@@ -1249,6 +1338,7 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
     if(auto typeBits = declVar->type->to<IR::Type_Bits>()){
         if(options.ultimateAutomizer){
             addDeclaration("var "+translate(declVar->name)+":int;\n");
+            updateVariableSize(translate(declVar->name), typeBits->size);
         }
         else addDeclaration("var "+translate(declVar->name)+":"+translate(declVar->type)+";\n");
     }
@@ -1506,15 +1596,31 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 int cnt2 = 0;
                 for(auto expr:selectExpression->select->components){
                     if(auto constant = selectCase->keyset->to<IR::Constant>()){
-                        condition += translate(expr);
-                        condition += " == ";
-                        std::stringstream ss;
-                        ss << constant->value;
-                        if(options.ultimateAutomizer && constant->type->to<IR::Type_Bits>()){
+                        if(options.ultimateAutomizer && options.bitBlasting 
+                            && expr->type->to<IR::Type_Bits>()){
+                            auto typeBits = expr->type->to<IR::Type_Bits>();
+                            int size = typeBits->size;
+                            cstring left = translate(expr);
+                            cstring right = integerBitBlasting((int)constant->value, size);
+                            for(int i = 0; i < size; i++){
+                                condition += connect(left, i) + " == " + connect(right, i);
+                                if(i < size-1) condition += " && ";
+                            }
+                        }
+                        else if(options.ultimateAutomizer && constant->type->to<IR::Type_Bits>()){
+                            condition += translate(expr);
+                            condition += " == ";
+                            std::stringstream ss;
+                            ss << constant->value;
                             condition += ss.str();
                         }
-                        else
+                        else{
+                            condition += translate(expr);
+                            condition += " == ";
+                            std::stringstream ss;
+                            ss << constant->value;
                             condition += ss.str()+translate(constant->type);
+                        }
                     }
                     else if(auto mask = selectCase->keyset->to<IR::Mask>()){
                         cstring functionName = translate(mask);
@@ -1806,6 +1912,7 @@ cstring Translator::bitBlastingTempDecl(const cstring &tmpPrefix, int size){
         cstring tempVar = connect(tmpPrefix, i);
         addDeclaration("var "+tempVar+" : bool;\n");
         addGlobalVariables(tempVar);
+        updateVariableSize(tempVar, 0);
         if(currentProcedure != nullptr)
             currentProcedure->addModifiedGlobalVariables(tempVar);
     }
@@ -1818,14 +1925,14 @@ cstring Translator::bitBlastingTempAssign(const cstring &tmpPrefix, int start, i
 }
 
 cstring Translator::exprXor(const cstring &a, const cstring &b){
-    // (!a&b || a&!b)
-    return "(!"+a+"&"+b+" || "+a+"&"+"!"+b+")";
+    // (!a&&b || a&&!b)
+    return "(!"+a+" && "+b+") || ("+a+" && !"+b+")";
 }
 
 cstring Translator::exprXor(const cstring &a, const cstring &b, const cstring &c){
-    // (!a&!b&c || !a&b&!c || a&!b&!c || a&b&c)
-    return "(!"+a+"&!"+b+"&"+c+" || !"+a+"&"+b+"!"+c+" || "+
-           a+"&!"+b+"&!"+c+ " || "+a+"&"+b+"&"+c+")";
+    // (!a&&!b&&c || !a&&b&&!c || a&&!b&&!c || a&&b&&c)
+    return "(!"+a+" && !"+b+" && "+c+") || (!"+a+" && "+b+" && !"+c+") || ("+
+           a+" && !"+b+" && !"+c+ ") || ("+a+" && "+b+" && "+c+")";
 }
 
 cstring Translator::connect(const cstring &expr, int idx){
@@ -1833,7 +1940,6 @@ cstring Translator::connect(const cstring &expr, int idx){
 }
 
 cstring Translator::integerBitBlasting(int num, int size){
-    std::cout << num << " " << size << std::endl;
     cstring res = getTempPrefix();
     bitBlastingTempDecl(res, size);
     for(int i = 0; i < size; i++){
@@ -1940,14 +2046,14 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             currentProcedure->addStatement(getIndent()+connect(tmpPrefix, 0)+" := "
                 +exprXor(connect(left, 0), connect(right, 0))+";\n");
             currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[0], 0)+" := "
-                +connect(left, 0)+"&"+connect(right, 0)+";\n");
+                +connect(left, 0)+" && "+connect(right, 0)+";\n");
             for(int i = 1; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
                     +exprXor(connect(left, i), connect(right, i), connect(tmpPrefixes[i-1], 0))+";\n");
-                currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[i], 0)+" := "
-                    +connect(left, i)+"&"+connect(right, i)+ " || "
-                    +connect(left, i)+"&"+connect(tmpPrefixes[i-1], 0)+" || "
-                    +connect(right, i)+"&"+connect(tmpPrefixes[i-1], 0)+";\n");
+                currentProcedure->addStatement(getIndent()+connect(tmpPrefixes[i], 0)+" := ("
+                    +connect(left, i)+" && "+connect(right, i)+ ") || ("
+                    +connect(left, i)+" && "+connect(tmpPrefixes[i-1], 0)+") || ("
+                    +connect(right, i)+" && "+connect(tmpPrefixes[i-1], 0)+");\n");
             }
             return tmpPrefix;
         }
@@ -1992,14 +2098,14 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
                 exprXor("(!"+connect(right, 0)+")", "true")+";\n");
             // negRightTmp[0] := (!right[0])&true
             currentProcedure->addStatement(getIndent()+connect(negRightTmp, 0)+" := (!"+
-                connect(right, 0)+") & true;\n");
+                connect(right, 0)+") && true;\n");
             for(int i = 1; i < size; i++){
                 // negRight[i] := (!right[i]) ^ negRightTmp[i-1]
                 currentProcedure->addStatement(getIndent()+connect(negRight, i)+" := "+
                     exprXor("(!"+connect(right, i)+")", connect(negRightTmp, i-1))+";\n");
                 // negRightTmp[i] := (!right[i]) & negRightTmp[i-1]
                 currentProcedure->addStatement(getIndent()+connect(negRight, i)+" := (!"+
-                    connect(right, i)+") & "+connect(negRightTmp, i-1)+";\n");
+                    connect(right, i)+") && "+connect(negRightTmp, i-1)+";\n");
             }
 
             cstring resTmp = getTempPrefix();
@@ -2009,15 +2115,15 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
                 exprXor(connect(left, 0), connect(negRight, 0))+";\n");
             // resTmp[0] := left[0] & negRight[0]
             currentProcedure->addStatement(getIndent()+connect(resTmp, 0)+" := "+
-                connect(left, 0)+" & "+connect(negRight, 0)+";\n");
+                connect(left, 0)+" && "+connect(negRight, 0)+";\n");
             for(int i = 1; i < size; i++){
                 // res[i] := left[i] ^ negRight[i] ^ resTmp[i-1]
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "+
                     exprXor(connect(left, i), connect(negRight, i), connect(resTmp, i-1))+";\n");
-                currentProcedure->addStatement(getIndent()+connect(resTmp, i)+" := "+
-                    connect(left, i)+" & "+connect(right, i)+" || "+
-                    connect(left, i)+" & "+connect(resTmp, i-1)+" || "+
-                    connect(right, i)+" & "+connect(resTmp, i-1)+";\n");
+                currentProcedure->addStatement(getIndent()+connect(resTmp, i)+" := ("+
+                    connect(left, i)+" && "+connect(right, i)+") || ("+
+                    connect(left, i)+" && "+connect(resTmp, i-1)+") || ("+
+                    connect(right, i)+" && "+connect(resTmp, i-1)+");\n");
             }
 
             return tmpPrefix;
@@ -2045,7 +2151,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             for(int i = 0; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
-                    +connect(left, i)+"&"+connect(right, i)+";\n");
+                    +connect(left, i)+" && "+connect(right, i)+";\n");
             }
             
             return tmpPrefix;
@@ -2070,7 +2176,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             for(int i = 0; i < size; i++){
                 currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := "
-                    +connect(left, i)+"|"+connect(right, i)+";\n");
+                    +connect(left, i)+" || "+connect(right, i)+";\n");
             }
             
             return tmpPrefix;
@@ -2145,7 +2251,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
         else if (auto leq = opBinary->to<IR::Leq>()) {
             /*  Example:
@@ -2192,7 +2298,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
         else if (auto grt = opBinary->to<IR::Grt>()) {
             /*  Example:
@@ -2233,7 +2339,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
         else if (auto lss = opBinary->to<IR::Lss>()) {
             /*  Example:
@@ -2274,7 +2380,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
         else if (auto equ = opBinary->to<IR::Equ>()) {
             /*  Example:
@@ -2299,7 +2405,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
         else if (auto neq = opBinary->to<IR::Neq>()) {
             /*  Example:
@@ -2324,8 +2430,12 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             stmt += ";\n";
             currentProcedure->addStatement(stmt);
-            return tmpPrefix;
+            return connect(tmpPrefix, 0);
         }
+    }
+    else if (opBinary->left->type->to<IR::Type_Boolean>()){
+        std::cout << opBinary->left->type->toString() << std::endl;
+        return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
     }
     return "";
 }
@@ -2828,9 +2938,14 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         // add children
         addProcedure(main);
         if(options.whileLoop){
-            mainProcedure.addStatement("    while(true){\n");
-            mainProcedure.addStatement("        call "+name+"();\n");
-            mainProcedure.addStatement("    }\n");
+            if(options.p4ltlSpec){
+                mainProcedure.addStatement("        call "+name+"();\n");
+            }
+            else{
+                mainProcedure.addStatement("    while(true){\n");
+                mainProcedure.addStatement("        call "+name+"();\n");
+                mainProcedure.addStatement("    }\n");
+            }
         }
         else
             mainProcedure.addStatement("    call "+name+"();\n");
@@ -2993,7 +3108,6 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         auto typeBits = field->type->to<IR::Type_Bits>();
         updateMaxBitvectorSize(typeBits);
         if(options.bitBlasting){
-            addDeclaration("var "+arg+"."+field->name+":int;\n");
             bitBlastingTempDecl(arg+"."+field->name, typeBits->size);
         }
         else if(options.ultimateAutomizer){
@@ -3002,6 +3116,7 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         else
             addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeBits->size)+";\n");
         addGlobalVariables(arg+"."+field->name);
+        updateVariableSize(arg+"."+field->name, typeBits->size);
     }
     else if(field->type->node_type_name() == "Type_Stack"){
         addDeclaration("const "+arg+"."+field->name+":HeaderStack;\n");
@@ -3036,6 +3151,8 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     addGlobalVariables(arg);
     addDeclaration("var "+arg+".valid:bool;\n");
     addGlobalVariables(arg+".valid");
+    updateVariableSize(arg+".valid", 0);
+
     havocProcedure.addStatement("    "+arg+".valid := false;\n");
     havocProcedure.addModifiedGlobalVariables(arg+".valid");
     // havocProcedure.addStatement("    isValid["+arg+"] := false;\n");
@@ -3242,7 +3359,6 @@ void Translator::translate(const IR::P4Control *p4Control){
         currentProcedure = &procedures[controlName];
         if(auto instance = controlLocal->to<IR::Declaration_Instance>()){
             cstring instanceName = instance->getName().toString();
-            std::cout << "instance: " << instanceName << std::endl;
             cstring renamedInstance = "";
             for(cstring declaration:declarations){
                 if(declaration.find(instanceName)!=nullptr 
@@ -3326,19 +3442,21 @@ void Translator::translate(const IR::P4Table *p4Table){
     incIndent();
     // Consider keys
     // Keys are not changed and this is only for key access validity checking
-    for(auto property:p4Table->properties->properties){
-        if (auto key = property->value->to<IR::Key>()) {
-            for(auto keyElement:key->keyElements){
-                cstring expr = translate(keyElement->expression);
-                if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
-                    std::string stmt(getIndent());
-                    stmt += expr;
-                    stmt += " := ";
-                    stmt += expr;
-                    stmt += ";\n";
-                    table.addStatement(stmt);
-                    table.addModifiedGlobalVariables(expr);
-                    std::cout << expr << std::endl;
+    if(!options.ultimateAutomizer){
+        for(auto property:p4Table->properties->properties){
+            if (auto key = property->value->to<IR::Key>()) {
+                for(auto keyElement:key->keyElements){
+                    cstring expr = translate(keyElement->expression);
+                    if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
+                        std::string stmt(getIndent());
+                        stmt += expr;
+                        stmt += " := ";
+                        stmt += expr;
+                        stmt += ";\n";
+                        table.addStatement(stmt);
+                        table.addModifiedGlobalVariables(expr);
+                        std::cout << expr << std::endl;
+                    }
                 }
             }
         }
@@ -3359,7 +3477,16 @@ void Translator::translate(const IR::P4Table *p4Table){
                     cstring actionName = translate(actionCallExpr->method);
                     const IR::P4Action* action = actions[actionName];
                     for(auto parameter:action->parameters->parameters){
-                        table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                        if(options.ultimateAutomizer && options.bitBlasting &&
+                            parameter->type->to<IR::Type_Bits>()){
+                            auto typeBits = parameter->type->to<IR::Type_Bits>();
+                            cstring parameterName = actionName+"."+translate(parameter->name);
+                            for(int i = 0; i < typeBits->size; i++){
+                                table.addFrontStatement("    var "+connect(parameterName, i)+":bool;\n");
+                            }
+                        }
+                        else
+                            table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
                     }
                 }
             }
@@ -3428,7 +3555,18 @@ void Translator::translate(const IR::P4Table *p4Table){
                         int cnt2 = action->parameters->parameters.size();
                         for(auto parameter:action->parameters->parameters){
                             cnt2--;
-                            table.addStatement(actionName+"."+translate(parameter->name));
+                            if(options.ultimateAutomizer && options.bitBlasting && 
+                                parameter->type->to<IR::Type_Bits>()){
+                                auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                cstring stmt = "";
+                                for(int i = 0; i < typeBits->size; i++){
+                                    stmt += connect(actionName+"."+translate(parameter->name), i);
+                                    if(i < typeBits->size-1) stmt += ", ";
+                                }
+                                table.addStatement(stmt);
+                            }
+                            else
+                                table.addStatement(actionName+"."+translate(parameter->name));
                             if(cnt2 != 0)
                                 table.addStatement(", ");
                         }
@@ -3639,6 +3777,14 @@ cstring Translator::translate(const IR::Parameter *parameter, cstring arg){
         if(auto typeBits = parameter->type->to<IR::Type_Bits>()){
             updateMaxBitvectorSize(typeBits);
             currentProcedure->parameters[name] = typeBits->size;
+            if(options.ultimateAutomizer && options.bitBlasting){
+                cstring res = "";
+                for(int i = 0; i < typeBits->size; i++){
+                    res += connect(name, i)+":bool";
+                    if(i < typeBits->size-1) res += ", ";
+                }
+                return res;
+            }
         }
     }
     if(options.ultimateAutomizer && parameter->type->to<IR::Type_Bits>())
@@ -3653,6 +3799,7 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
     limit.addDeclaration("\nprocedure "+limitName+"();\n");
     limit.addDeclaration("    ensures(");
     int cnt = actionList->actionList.size();
+    if(cnt == 0 || cnt == 1) limit.addDeclaration("true");
     for(auto actionElement:actionList->actionList){
         cnt--;
         // NoAction should not be considered

@@ -184,12 +184,14 @@ set (V1_FRONTEND_HDRS
 set (PARSERS_SRCS
   parsers/parserDriver.cpp
   parsers/p4/p4AnnotationLexer.cpp
+  parsers/p4ltl/p4ltlast.cpp
   )
 
 set (PARSERS_HDRS
   parsers/parserDriver.h
   parsers/p4/abstractP4Lexer.hpp
   parsers/p4/p4AnnotationLexer.hpp
+  parsers/p4ltl/p4ltlast.hpp
   )
 
 macro(add_parser pname)
@@ -223,16 +225,19 @@ macro(add_parser pname)
     )
 endmacro(add_parser)
 
+add_parser(p4ltl)
 add_parser(v1)
 add_parser(p4)
 
 # BUILT_SOURCES += \
 # 	parsers/p4/p4parser.hpp \
-# 	parsers/v1/v1parser.hpp
+# 	parsers/v1/v1parser.hpp \
+#   parsers/p4ltl/p4ltlparser.hpp
 
 # noinst_HEADERS += \
 # 	parsers/p4/p4lexer.hpp \
-# 	parsers/v1/v1lexer.hpp
+# 	parsers/v1/v1lexer.hpp \
+#   parsers/p4ltl/p4ltlparser.hpp
 
 set (FRONTEND_SOURCES
   ${COMMON_FRONTEND_SRCS}
@@ -241,12 +246,14 @@ set (FRONTEND_SOURCES
   ${V1_FRONTEND_SRCS}
   ${p4PARSER_GEN_SRCS}
   ${v1PARSER_GEN_SRCS}
+  ${p4ltlPARSER_GEN_SRCS}
   ${IR_GENERATED_SRCS}
   )
 
 set_source_files_properties(${IR_GENERATED_SRCS} PROPERTIES GENERATED TRUE)
 set_source_files_properties(${v1PARSER_GEN_SRCS} PROPERTIES GENERATED TRUE)
 set_source_files_properties(${p4PARSER_GEN_SRCS} PROPERTIES GENERATED TRUE)
+set_source_files_properties(${p4ltlPARSER_GEN_SRCS} PROPERTIES GENERATED TRUE)
 
 set (FRONTEND_CPPLINT_FILES
   ${P4_FRONTEND_SRCS} ${P4_FRONTEND_HDRS}
@@ -262,4 +269,4 @@ if (FLEX_INCLUDE_DIRS)
 endif ()
 add_library (frontend STATIC ${FRONTEND_SOURCES} ${EXTENSION_FRONTEND_SOURCES})
 add_dependencies (frontend genIR)
-add_dependencies (frontend mkp4dirs mkv1dirs)
+add_dependencies (frontend mkp4dirs mkv1dirs mkp4ltldirs)

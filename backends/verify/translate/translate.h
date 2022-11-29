@@ -5,13 +5,16 @@
 #include <fstream>
 #include <map>
 #include <queue>
+#include "backends/verify/translate/p4ltl_utils.h"
 #include "ir/ir.h"
 #include "boogie_procedure.h"
 #include "boogie_statement.h"
 #include "utils.h"
 #include "bmv2.h"
 #include "backends/verify/translate/options.h"
+#include "frontends/parsers/p4ltl/p4ltlast.hpp"
 
+class P4LTLTranslator;
 
 class Translator{
 private:
@@ -47,6 +50,10 @@ private:
 	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
 
 	int maxBitvectorSize;
+	std::map<cstring, int> sizes; // 0 means bool
+
+	std::map<cstring, P4LTL::AstNode*> p4ltlSpec;
+	P4LTLTranslator* ltlTranslator;
 
 public:
 	Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr);
@@ -56,6 +63,8 @@ public:
 	cstring toString(int val);
 	cstring toString(const big_int&);
 	cstring getTempPrefix();
+
+	BoogieProcedure getMainProcedure();
 
 	void addNecessaryProcedures();
 	void addProcedure(BoogieProcedure procedure);
@@ -75,9 +84,16 @@ public:
 	void updateModifiedVariables(cstring variable);
 	void addPred(cstring proc, cstring predProc);
 
+	// P4LTL Specification
+	void setP4LTLSpec(cstring key, P4LTL::AstNode* root);
+	P4LTL::AstNode* getP4LTLSpec(cstring key);
+	void setP4LTLFreeVars(cstring decl);
+
 	// For Ultimate Automizer (bitvector to integer)
 	void updateMaxBitvectorSize(int size);
 	void updateMaxBitvectorSize(const IR::Type_Bits *typeBits);
+	void updateVariableSize(cstring name, int size); // 0 means bool
+	int getSize(cstring name);
 	void addUAFunctions();
 
 	// Bit Blasting

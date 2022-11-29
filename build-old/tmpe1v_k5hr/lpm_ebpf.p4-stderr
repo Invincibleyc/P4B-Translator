@@ -1,0 +1,11 @@
+*** make[4]: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.
+
+*** Error 2: Failed to build the filter:
+make[4]: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.
+In file included from ebpf_runtime.c:29:0:
+/media/yec/WORK/Programs/P4-verification/P4B-Translator/build/tmpe1v_k5hr/control.h: In function ‘setup_control_plane’:
+/media/yec/WORK/Programs/P4-verification/P4B-Translator/build/tmpe1v_k5hr/control.h:7:44: error: expected expression before ‘;’ token
+  key_pipe_Check_src_ip0.field0 = 0x0a01****;
+                                            ^
+make[4]: *** [/media/yec/WORK/Programs/P4-verification/P4B-Translator/build/tmpe1v_k5hr/build/ebpf_runtime.o] Error 1
+

@@ -21,7 +21,7 @@ sudo make install
 
 ```
 # Translate p4 into boogie for UAutomizer
-p4c-translator <P4File> --ua -o <outFile>
+p4c-translator <P4File> --ua2 --p4ltl <P4LTLSpec>  -o <outFile>
 ```
 
 
