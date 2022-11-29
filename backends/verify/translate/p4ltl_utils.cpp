@@ -110,7 +110,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 			// std::cout << "unknown size: " << left << " " << right << std::endl;
 			addStatement(variable+" := "+left+extendedCompOp->getOp()+right+";\n");
 		}
-		return variable;
+		return "("+variable+" == true)";
 		// return "("+translateP4LTL(extendedCompOp->getLeft())+extendedCompOp->getOp()
 		// 		+translateP4LTL(extendedCompOp->getRight())+")";
 	}
