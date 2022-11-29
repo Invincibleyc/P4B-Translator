@@ -61,11 +61,16 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
+	// std::cout << "BinOpNode" << std::endl;
+	// std::cout << node->toString() << std::endl;
 	if(auto binTempOp = dynamic_cast<P4LTL::BinaryTemporalOperator*>(node)){
-		return translateP4LTL(binTempOp->getLeft())+binTempOp->getOp()
-				+translateP4LTL(binTempOp->getRight());
+		// std::cout << "BinaryTemporalOperator" << std::endl << node->getOp() << std::endl;
+		return "("+translateP4LTL(binTempOp->getLeft())+binTempOp->getOp()
+				+translateP4LTL(binTempOp->getRight())+")";
 	}
 	else if(auto extendedCompOp = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(node)){
+		// std::cout << "ExtendedComparativeOperator" << std::endl << node->getOp() << std::endl;
+		
 		cstring variable = TempVariable::getPrefix("_p4ltl_");
 		addVariable(variable);
 		addDeclaration("\nvar "+variable+":bool;\n");
@@ -110,11 +115,15 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 		// 		+translateP4LTL(extendedCompOp->getRight())+")";
 	}
 	else if(auto binPredOp = dynamic_cast<P4LTL::BinaryPredicateOperator*>(node)){
-		return translateP4LTL(binPredOp->getLeft())+binPredOp->getOp()
-				+translateP4LTL(binPredOp->getRight());
+		// std::cout << "BinaryPredicateOperator" << std::endl << node->getOp() << std::endl;
+
+		return "("+translateP4LTL(binPredOp->getLeft())+binPredOp->getOp()
+				+translateP4LTL(binPredOp->getRight())+")";
 	}
 	// + - *
 	else if(auto binTermOp = dynamic_cast<P4LTL::BinaryTermOperator*>(node)){
+		// std::cout << "BinaryTermOperator" << std::endl << node->getOp() << std::endl;
+
 		cstring variable = TempVariable::getPrefix("_p4ltl_");
 		addVariable(variable);
 		addDeclaration("\nvar "+variable+":int;\n");
