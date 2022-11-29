@@ -95,8 +95,8 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
             	else if(extendedCompOp->getOp() == " != ") funcName = "bneq.bv"+size;
             	else if(extendedCompOp->getOp() == " < ") funcName = "bult.bv"+size;
             	else if(extendedCompOp->getOp() == " <= ") funcName = "bsle.bv"+size;
-            	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : int{((left\%"
-            		+powerFunc+")"+extendedCompOp->getOp()+"(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+            	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{((left\%"
+            		+powerFunc+")"+extendedCompOp->getOp()+"(right\%"+powerFunc+"))}\n";
             	p4Translator->addFunction(funcName, function);
             	addStatement(variable+" := "+funcName+"("+left+", "+right+");\n");
 			}
