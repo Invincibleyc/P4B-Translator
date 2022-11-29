@@ -1,2 +1,0 @@
-/usr/bin/ar qc libir.a CMakeFiles/ir.dir/base.cpp.o CMakeFiles/ir.dir/dbprint.cpp.o CMakeFiles/ir.dir/dbprint-expression.cpp.o CMakeFiles/ir.dir/dbprint-stmt.cpp.o CMakeFiles/ir.dir/dbprint-type.cpp.o CMakeFiles/ir.dir/dbprint-p4.cpp.o CMakeFiles/ir.dir/dump.cpp.o CMakeFiles/ir.dir/expression.cpp.o CMakeFiles/ir.dir/ir.cpp.o CMakeFiles/ir.dir/json_parser.cpp.o CMakeFiles/ir.dir/node.cpp.o CMakeFiles/ir.dir/pass_manager.cpp.o CMakeFiles/ir.dir/type.cpp.o CMakeFiles/ir.dir/v1.cpp.o CMakeFiles/ir.dir/visitor.cpp.o CMakeFiles/ir.dir/write_context.cpp.o
-/usr/bin/ranlib libir.a

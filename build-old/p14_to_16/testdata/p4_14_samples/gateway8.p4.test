@@ -1,5 +1,0 @@
-#! /usr/bin/env bash
-# Generated file, modify with care
-
-cd /media/yec/WORK/Programs/P4-verification/P4B-Translator/build
-/media/yec/WORK/Programs/P4-verification/P4B-Translator/backends/p4test/run-p4-sample.py /media/yec/WORK/Programs/P4-verification/P4B-Translator  "$@" /media/yec/WORK/Programs/P4-verification/P4B-Translator/testdata/p4_14_samples/gateway8.p4

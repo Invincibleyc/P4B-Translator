@@ -1,5 +1,0 @@
-#! /usr/bin/env bash
-# Generated file, modify with care
-
-cd /media/yec/WORK/Programs/P4-verification/P4B-Translator/build
-/media/yec/WORK/Programs/P4-verification/P4B-Translator/backends/p4test/run-p4-sample.py /media/yec/WORK/Programs/P4-verification/P4B-Translator --p4runtime -a '--maxErrorCount 100' "$@" /media/yec/WORK/Programs/P4-verification/P4B-Translator/testdata/p4_16_samples/ipv4-actions_ubpf.p4

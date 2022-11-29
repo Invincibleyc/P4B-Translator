@@ -1,2 +1,0 @@
-/usr/bin/ar qc libverifybackend.a CMakeFiles/verifybackend.dir/translate/translate.cpp.o CMakeFiles/verifybackend.dir/translate/analyzer.cpp.o CMakeFiles/verifybackend.dir/translate/boogie_procedure.cpp.o CMakeFiles/verifybackend.dir/translate/boogie_statement.cpp.o CMakeFiles/verifybackend.dir/translate/bmv2.cpp.o CMakeFiles/verifybackend.dir/translate/utils.cpp.o
-/usr/bin/ranlib libverifybackend.a
