@@ -147,9 +147,9 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 				cstring size = p4Translator->toString(sizeLeft);
 				cstring powerFunc = "power_2_"+size+"()";
             	cstring funcName = "";
-            	if(binTermOp->getOp() == "+") funcName = "add.bv"+size;
-            	else if(binTermOp->getOp() == "-") funcName = "sub.bv"+size;
-            	else if(binTermOp->getOp() == "*") funcName = "add.bv"+size;
+            	if(binTermOp->getOp() == " + ") funcName = "add.bv"+size;
+            	else if(binTermOp->getOp() == " - ") funcName = "sub.bv"+size;
+            	else if(binTermOp->getOp() == " * ") funcName = "add.bv"+size;
             	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
                 	"(left\%"+powerFunc+")+(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
             	p4Translator->addFunction(funcName, function);

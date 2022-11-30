@@ -387,7 +387,8 @@ void Translator::writeToFile(){
                 std::cout << "ERROR: "+item.first+" is a global variable. Please change the name.\n";
                 std::abort();
             }
-            havocProcedure.addStatement("    haovc "+item.second+";\n");
+            addGlobalVariables(item.second);
+            havocProcedure.addStatement("    havoc "+item.second+";\n");
             havocProcedure.addModifiedGlobalVariables(item.second);
         }
         for(cstring variable:ltlTranslator->getVariables()){
