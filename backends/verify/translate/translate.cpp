@@ -395,14 +395,27 @@ void Translator::writeToFile(){
             addGlobalVariables(variable);
             mainProcedure.addModifiedGlobalVariables(variable);
         }
-        cstring call = mainProcedure.lastStatement();
-        mainProcedure.removeLastStatement();
-        mainProcedure.addStatement("    while(true){\n");
-        mainProcedure.addStatement(call);
-        for(cstring stmt:ltlTranslator->getStatements()){
-            mainProcedure.addStatement("        "+stmt);
+        BoogieProcedure* main;
+        if(procedures.find("main") != procedures.end()){
+            main = &procedures["main"];
+            for(cstring stmt:ltlTranslator->getStatements()){
+                main->addStatement("    "+stmt);
+            }
+            for(cstring variable:ltlTranslator->getVariables()){
+                main->addModifiedGlobalVariables(variable);
+            }
         }
-        mainProcedure.addStatement("    }\n");
+        else{
+            cstring call = mainProcedure.lastStatement();
+            mainProcedure.removeLastStatement();
+            mainProcedure.addStatement("    while(true){\n");
+            mainProcedure.addStatement(call);
+            for(cstring stmt:ltlTranslator->getStatements()){
+                mainProcedure.addStatement("        "+stmt);
+            }
+            mainProcedure.addStatement("    }\n");
+        }
+        
         for(cstring declaration:ltlTranslator->getDeclarations()){
             addDeclaration(declaration);
         }
@@ -2939,14 +2952,14 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         // add children
         addProcedure(main);
         if(options.whileLoop){
-            if(options.p4ltlSpec){
-                mainProcedure.addStatement("        call "+name+"();\n");
-            }
-            else{
+            // if(options.p4ltlSpec){
+                // mainProcedure.addStatement("        call "+name+"();\n");
+            // }
+            // else{
                 mainProcedure.addStatement("    while(true){\n");
                 mainProcedure.addStatement("        call "+name+"();\n");
                 mainProcedure.addStatement("    }\n");
-            }
+            // }
         }
         else
             mainProcedure.addStatement("    call "+name+"();\n");
