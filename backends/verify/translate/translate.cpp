@@ -1699,6 +1699,7 @@ cstring Translator::translate(const IR::ConstructorCallExpression *constructorCa
 
 cstring Translator::translate(const IR::Cast *cast){
     if (cast->destType->to<IR::Type_Bits>() || cast->destType->to<IR::Type_Name>()){
+
     // if (auto destType = cast->destType->to<IR::Type_Bits>()){
         int dstSize = -1, srcSize = -1;
         if(auto destType = cast->destType->to<IR::Type_Bits>()){
@@ -1746,6 +1747,10 @@ cstring Translator::translate(const IR::Cast *cast){
                 return expr;
             }
         }
+        else{
+            return expr;
+        }
+
     }
     return "";
 }
@@ -3798,6 +3803,12 @@ cstring Translator::translate(const IR::Parameter *parameter, cstring arg){
                     if(i < typeBits->size-1) res += ", ";
                 }
                 return res;
+            }
+        }
+        else if(auto typeName = parameter->type->to<IR::Type_Name>()){
+            cstring _name = translate(typeName);
+            if(typeDefs.find(_name) != typeDefs.end()){
+                currentProcedure->parameters[name] = typeDefs[_name];
             }
         }
     }
