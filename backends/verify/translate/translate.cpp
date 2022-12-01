@@ -780,8 +780,9 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     if(expr2.find(";\n")){
         currentProcedure->addStatement(getIndent()+expr2);
     }
-    else
+    else if(expr2 != ""){
         currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
+    }
     return "";
 }
 
@@ -1101,6 +1102,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             arg = translate(argument);
             break;
         }
+        if(arg.find(".next")) return "";
         res = arg+".valid := true;\n";
         currentProcedure->addModifiedGlobalVariables(arg+".valid");
         return res;
@@ -2498,7 +2500,30 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                 return funcName+"("+translate(opBinary->left)+")";
             }
             else{
-                return "";
+                cstring funcName = "shl."+typeName+"_n";
+                cstring left = translate(opBinary->left);
+                for(int i = 1; i <= size; i++){
+                    cstring shl_function = "";
+                    cstring shl_funcName = "shl."+typeName+"_"+toString(i);
+                    cstring shl_powerFunc = "power_2_"+toString(i)+"()";
+                    shl_function = "function {:inline true} "+shl_funcName+"(num:int) : ";
+                    shl_function += "int {(num*"+shl_powerFunc+")\%"+shl_powerFunc+"}\n";
+                    addFunction(shl_funcName, shl_function);
+                }
+                function = "function {:inline true} "+funcName+"(num:int, n:int) : ";
+                function += "int {\n";
+                function += "    if(n == 0) then num\n";
+                for(int i = 1; i < size; i++){
+                    cstring shl_funcName = "shl."+typeName+"_"+toString(i);
+                    function += "    else if(n == "+toString(i)+") then ";
+                    function += shl_funcName+"(num)\n";
+                }
+                function += "    else 0\n";
+                function += "}\n";
+
+                addFunction(funcName, function);
+
+                return funcName+"("+translate(opBinary->left)+","+translate(opBinary->right)+")";
             }
         }
         else if (auto shr = opBinary->to<IR::Shr>()){
@@ -3136,6 +3161,21 @@ void Translator::translate(const IR::StructField *field, cstring arg){
             addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeBits->size)+";\n");
         addGlobalVariables(arg+"."+field->name);
         updateVariableSize(arg+"."+field->name, typeBits->size);
+    }
+    else if(field->type->node_type_name() == "Type_Varbits"){
+        auto typeVarbits = field->type->to<IR::Type_Varbits>();
+        // std::cout << "Type_Varbits " << typeVarbits->size << std::endl;
+        // updateMaxBitvectorSize(typeVarbits->size);
+        if(options.bitBlasting){
+            bitBlastingTempDecl(arg+"."+field->name, typeVarbits->size);
+        }
+        else if(options.ultimateAutomizer){
+            addDeclaration("var "+arg+"."+field->name+":int;\n");
+        }
+        else
+            addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeVarbits->size)+";\n");
+        addGlobalVariables(arg+"."+field->name);
+        // updateVariableSize(arg+"."+field->name, typeVarbits->size);
     }
     else if(field->type->node_type_name() == "Type_Stack"){
         addDeclaration("const "+arg+"."+field->name+":HeaderStack;\n");
