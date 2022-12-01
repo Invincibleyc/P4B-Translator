@@ -361,14 +361,14 @@ void Translator::addUAFunctions(){
         }
     }
 
-    // declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)\%2)/2}\n";
-    declaration += "function band(left:int, right:int) : int{if(left>0 && right>0) then 1 else 0}\n";
-    // declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)\%2}\n";
-    declaration += "function bxor(left:int, right:int) : int{if((left==0&&right>0) || (left>0&&right==0)) then 1 else 0}\n";
-    // declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)\%2+((left+right)-((left+right)\%2))/2}\n";
-    declaration += "function bor(left:int, right:int) : int{if(left>0 || right>0) then 1 else 0}\n";
-    // declaration += "function {:inline true} bnot(num:int) : int{1-num\%2}\n";
-    declaration += "function bnot(num:int) : int{if(num == 0) then 1 else 0}\n";
+    declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)\%2)/2}\n";
+    // declaration += "function band(left:int, right:int) : int{if(left>0 && right>0) then 1 else 0}\n";
+    declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)\%2}\n";
+    // declaration += "function bxor(left:int, right:int) : int{if((left==0&&right>0) || (left>0&&right==0)) then 1 else 0}\n";
+    declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)\%2+((left+right)-((left+right)\%2))/2}\n";
+    // declaration += "function bor(left:int, right:int) : int{if(left>0 || right>0) then 1 else 0}\n";
+    declaration += "function {:inline true} bnot(num:int) : int{1-num\%2}\n";
+    // declaration += "function bnot(num:int) : int{if(num == 0) then 1 else 0}\n";
     
 }
 
