@@ -899,7 +899,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                                         incIndent();
 
                                         // Table entry
-                                        currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
+                                        // currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
                                         // Specify action_run
                                         currentProcedure->addStatement(getIndent()+"assume "+tableName+
                                             ".action_run == "+tableName+".action."+actionName+";\n");
@@ -922,7 +922,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
 
                                         currentProcedure->addStatement(actionCall);
                                         // Table exit
-                                        currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
+                                        // currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
                                         if(fallThrough < switchStatement->cases.size())
                                             translate(switchStatement->cases[fallThrough]->statement);
                                         currentProcedure->addStatement(getIndent()+"goto "+switchLabel
@@ -945,7 +945,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                     incIndent();
 
                     // Table entry
-                    currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
+                    // currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_entry();\n");
                     // Specify action_run
                     currentProcedure->addStatement(getIndent()+"assume "+tableName+
                                             ".action_run == "+".action."+actionName+";\n");
@@ -967,7 +967,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                     currentProcedure->addStatement(actionCall);
 
                     // Table exit
-                    currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
+                    // currentProcedure->addStatement(getIndent()+"call "+tableName+".apply_table_exit();\n");
                     
                     
                     if(fallThrough < switchStatement->cases.size())
@@ -3623,16 +3623,16 @@ void Translator::translate(const IR::P4Table *p4Table){
     cstring tableName = name+".apply";
 
     // add table entry
-    BoogieProcedure tableEntry = BoogieProcedure(tableName+"_table_entry");
-    tableEntry.addDeclaration("\n// Table Entry "+tableName+"_table_entry"+"\n");
-    tableEntry.addDeclaration("procedure "+tableName+"_table_entry"+"();\n");
-    addProcedure(tableEntry);
+    // BoogieProcedure tableEntry = BoogieProcedure(tableName+"_table_entry");
+    // tableEntry.addDeclaration("\n// Table Entry "+tableName+"_table_entry"+"\n");
+    // tableEntry.addDeclaration("procedure "+tableName+"_table_entry"+"();\n");
+    // addProcedure(tableEntry);
 
     // add table exit
-    BoogieProcedure tableExit = BoogieProcedure(tableName+"_table_exit");
-    tableExit.addDeclaration("\n// Table Exit "+tableName+"_table_exit"+"\n");
-    tableExit.addDeclaration("procedure "+tableName+"_table_exit();\n");
-    addProcedure(tableExit);
+    // BoogieProcedure tableExit = BoogieProcedure(tableName+"_table_exit");
+    // tableExit.addDeclaration("\n// Table Exit "+tableName+"_table_exit"+"\n");
+    // tableExit.addDeclaration("procedure "+tableName+"_table_exit();\n");
+    // addProcedure(tableExit);
 
 
     BoogieProcedure table = BoogieProcedure(tableName);
@@ -3664,7 +3664,7 @@ void Translator::translate(const IR::P4Table *p4Table){
     }
 
 
-    table.addStatement("\n    call "+tableName+"_table_entry"+"();\n");
+    // table.addStatement("\n    call "+tableName+"_table_entry"+"();\n");
 
 
     // std::cout << tableName << std::endl;
@@ -3799,8 +3799,8 @@ void Translator::translate(const IR::P4Table *p4Table){
     }
 
     if(options.gotoOrIf){
-        table.addStatement("\n    Exit:\n");
-        table.addStatement("        call "+tableName+"_table_exit();\n");
+        // table.addStatement("\n    Exit:\n");
+        // table.addStatement("        call "+tableName+"_table_exit();\n");
     }
 
     addDeclaration("var "+name+".action_run : "+name+".action;\n");
