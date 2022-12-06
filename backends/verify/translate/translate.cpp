@@ -3322,7 +3322,7 @@ void Translator::translate(const IR::Type_Header *typeHeader){
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
-    std::cout << "\n// Header "+arg+"\n" << std::endl;
+    // std::cout << "\n// Header "+arg+"\n" << std::endl;
     addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
     addDeclaration("var "+arg+":Ref;\n");
     addGlobalVariables(arg);
@@ -3334,8 +3334,10 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     havocProcedure.addModifiedGlobalVariables(arg+".valid");
     // havocProcedure.addStatement("    isValid["+arg+"] := false;\n");
     // havocProcedure.addModifiedGlobalVariables("isValid");
-    havocProcedure.addStatement("    emit["+arg+"] := false;\n");
-    havocProcedure.addModifiedGlobalVariables("emit");
+    if(currentProcedure==nullptr || currentProcedure->getName().find("_parser_") == nullptr){
+        havocProcedure.addStatement("    emit["+arg+"] := false;\n");
+        havocProcedure.addModifiedGlobalVariables("emit");
+    }
     for(const IR::StructField* field:typeHeader->fields){
         translate(field, arg);
         cstring fieldName = arg + "." + field->name;
@@ -3368,12 +3370,14 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
             }
         }
         else{
-            havocProcedure.addStatement("    havoc "+fieldName+";\n");
-            if(auto typeBits = field->type->to<IR::Type_Bits>()){
-                havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
-                    fieldName + " <= power_2_" +toString(typeBits->size) +"() );\n");
+            if(currentProcedure==nullptr || currentProcedure->getName().find("_parser_") == nullptr){
+                havocProcedure.addStatement("    havoc "+fieldName+";\n");
+                if(auto typeBits = field->type->to<IR::Type_Bits>()){
+                    havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
+                        fieldName + " <= power_2_" +toString(typeBits->size) +"() );\n");
+                }
+                havocProcedure.addModifiedGlobalVariables(fieldName);
             }
-            havocProcedure.addModifiedGlobalVariables(fieldName);
 
             if(options.p4ltlSpec){
                 for(auto item:p4ltlSpec){
@@ -3423,19 +3427,19 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     for(auto parserLocal:p4Parser->parserLocals){
         cnt--;
         parser.addStatement(translate(parserLocal));
-        if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
-            cstring name = translate(declVar->name);
-            cstring type = translate(declVar->type);
-            if(options.gotoOrIf)
-                currentProcedure->addVariableDeclaration(getIndent()+"var "+name+":"+type+";\n");
-            // addGlobalVariables(name);
-            localDecl += name+":"+type;
-            localDeclArg += translate(declVar->name);
-        }
-        if(cnt > 0){
-            localDecl += ", ";
-            localDeclArg += ", ";
-        }
+        // if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
+        //     cstring name = translate(declVar->name);
+        //     cstring type = translate(declVar->type);
+        //     if(options.gotoOrIf)
+        //         currentProcedure->addVariableDeclaration(getIndent()+"var "+name+":"+type+";\n");
+        //     // addGlobalVariables(name);
+        //     localDecl += name+":"+type;
+        //     localDeclArg += translate(declVar->name);
+        // }
+        // if(cnt > 0){
+        //     localDecl += ", ";
+        //     localDeclArg += ", ";
+        // }
     }
 
     if(options.gotoOrIf){
@@ -3717,6 +3721,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                 }
 
                 cnt = actionList->actionList.size();
+                bool firstAction = true;
                 for(auto actionElement:actionList->actionList){
                     // if(actionList->actionList.size()!=1){
                     //     table.addStatement(getIndent()+"assume(");
@@ -3731,7 +3736,9 @@ void Translator::translate(const IR::P4Table *p4Table){
 
                         std::string label("\n"+getIndent());
                         label += "action_"; label += actionName; label += ":\n";
-                        table.addStatement(label);
+                        if(options.gotoOrIf){
+                            table.addStatement(label);
+                        }
 
                         if(actionList->actionList.size()!=1){
                             // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
@@ -3744,8 +3751,15 @@ void Translator::translate(const IR::P4Table *p4Table){
                             table.addModifiedGlobalVariables(name+".action_run");
                         }
                         else{
-                            table.addStatement(getIndent()+"if("+name+".action_run == "+
-                                name+".action."+actionName+"){\n");
+                            if(firstAction){
+                                table.addStatement(getIndent()+"if("+name+".action_run == "+
+                                    name+".action."+actionName+"){\n");
+                                firstAction = false;
+                            }
+                            else{
+                                table.addStatement(getIndent()+"else if("+name+".action_run == "+
+                                    name+".action."+actionName+"){\n");
+                            }
                             incIndent();
                         }
                         
