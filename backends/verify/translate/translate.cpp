@@ -728,7 +728,8 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
     else if(expr=="hash"){
         currentProcedure->addStatement(getIndent()+"// hash\n");
         cstring expr2 = translate(methodCallStatement->methodCall);
-        currentProcedure->addStatement(getIndent()+expr2+";\n");
+        currentProcedure->addStatement(getIndent()+expr2);
+        // currentProcedure->addStatement(getIndent()+expr2+";\n");
         return "";
     }
     else if(expr.find("digest") != nullptr){
@@ -1161,9 +1162,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             // right += returnType;
         // return "bsge."+typeName+"("+translate(opBinary->left)+", "+right+")";
 
-        res += "assume(bsge."+typeName+"("+arg0+", "+arg2+
-            ") && bsge."+typeName+"("+arg4+", "+arg0+"));\n"+
-            getIndent()+"havoc "+arg0;
+        res += "havoc "+arg0+";\n";
+        // res += getIndent()+"assume(bsge."+typeName+"("+arg0+", "+arg2+
+            // ") && bsge."+typeName+"("+arg4+", "+arg0+"));\n";
+        res += getIndent()+"assume(("+arg0+" >= "+arg2+
+            ") && "+"("+arg4+" >= "+arg0+"));\n";
         currentProcedure->addModifiedGlobalVariables(arg0);
         return res;
     }
@@ -1640,14 +1643,96 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                     }
                     else if(auto mask = selectCase->keyset->to<IR::Mask>()){
                         cstring functionName = translate(mask);
-                        condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                        condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                        cstring maskLeft = translate(mask->left);
+                        cstring maskRight = translate(mask->right);
+                        int maskLeftNum = -1, maskRightNum = -1;
+                        if(maskLeft.size() <= 9 && maskRight.size() <= 9){
+                            if(isNumber(maskLeft)){
+                                maskLeftNum = atoi(std::string(maskLeft.c_str()).c_str());
+                            }
+                            if(isNumber(maskRight)){
+                                maskRightNum = atoi(std::string(maskRight.c_str()).c_str());
+                            }
+
+                            if(maskRightNum == 0){
+                                condition += "true";
+                            }
+                            else{
+                                bool flag = false;
+                                for(int i = 1; i <= 2147483647; i=(i<<1)+1){
+                                    if(maskRightNum == i){
+                                        flag = true;
+                                        break;
+                                    }
+                                    if(i == 2147483647) break;
+                                }                                
+                                if(flag){
+                                    condition += translate(expr)+"%"+maskRight+" == ";
+                                }
+                                else{
+                                    condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
+                                }
+
+                                if(maskLeftNum != -1 && maskRightNum != -1){
+                                    condition += toString(maskLeftNum & maskRightNum);
+                                }
+                                else if(maskRightNum == 0){
+                                    condition += functionName+"("+maskLeft+", "+maskRight+")";
+                                }
+                            }
+
+                        }
+                        else{
+                            condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
+                            condition += functionName+"("+maskLeft+", "+maskRight+")";
+                        }
                     }
                     else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
                         if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
                             cstring functionName = translate(mask);
-                            condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                            condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+                            cstring maskLeft = translate(mask->left);
+                            cstring maskRight = translate(mask->right);
+                            int maskLeftNum = -1, maskRightNum = -1;
+                            if(maskLeft.size() <= 9 && maskRight.size() <= 9){
+                                if(isNumber(maskLeft)){
+                                    maskLeftNum = atoi(std::string(maskLeft.c_str()).c_str());
+                                }
+                                if(isNumber(maskRight)){
+                                    maskRightNum = atoi(std::string(maskRight.c_str()).c_str());
+                                }
+
+                                if(maskRightNum == 0){
+                                    condition += "true";
+                                }
+                                else{
+                                    bool flag = false;
+                                    for(int i = 1; i <= 2147483647; i=(i<<1)+1){
+                                        if(maskRightNum == i){
+                                            flag = true;
+                                            break;
+                                        }
+                                        if(i == 2147483647) break;
+                                    }                                
+                                    if(flag){
+                                        condition += translate(expr)+"%"+maskRight+" == ";
+                                    }
+                                    else{
+                                        condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
+                                    }
+
+                                    if(maskLeftNum != -1 && maskRightNum != -1){
+                                        condition += toString(maskLeftNum & maskRightNum);
+                                    }
+                                    else if(maskRightNum == 0){
+                                        condition += functionName+"("+maskLeft+", "+maskRight+")";
+                                    }
+                                }
+
+                            }
+                            else{
+                                condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
+                                condition += functionName+"("+maskLeft+", "+maskRight+")";
+                            }
                         }
                         else{
                             condition += translate(expr)+" == ";
@@ -2500,30 +2585,62 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                 return funcName+"("+translate(opBinary->left)+")";
             }
             else{
-                cstring funcName = "shl."+typeName+"_n";
                 cstring left = translate(opBinary->left);
-                for(int i = 1; i <= size; i++){
-                    cstring shl_function = "";
-                    cstring shl_funcName = "shl."+typeName+"_"+toString(i);
-                    cstring shl_powerFunc = "power_2_"+toString(i)+"()";
-                    shl_function = "function {:inline true} "+shl_funcName+"(num:int) : ";
-                    shl_function += "int {(num*"+shl_powerFunc+")\%"+shl_powerFunc+"}\n";
-                    addFunction(shl_funcName, shl_function);
-                }
-                function = "function {:inline true} "+funcName+"(num:int, n:int) : ";
-                function += "int {\n";
-                function += "    if(n == 0) then num\n";
-                for(int i = 1; i < size; i++){
-                    cstring shl_funcName = "shl."+typeName+"_"+toString(i);
-                    function += "    else if(n == "+toString(i)+") then ";
-                    function += shl_funcName+"(num)\n";
-                }
-                function += "    else 0\n";
-                function += "}\n";
+                if(isNumber(left)){
+                    cstring funcName = "shl."+typeName+"_"+left+"_n";
+                    int leftNum = atoi(std::string(left.c_str()).c_str());
 
-                addFunction(funcName, function);
+                    function = "function {:inline true} "+funcName+"(n:int) : ";
+                    function += "int {\n";
+                    function += "    if(n == 0) then "+left+"\n";
+                    bool flag = false;
+                    for(int i = 1; i < size; i++){
+                        cstring shl_funcName = "shl."+typeName+"_"+toString(i);
+                        function += "    else if(n == "+toString(i)+") then ";
+                        long long tmp = leftNum;
+                        tmp <<= i;
+                        if(flag || tmp > 2147483647){
+                            flag = true;
+                            function += toString(leftNum)+"*power_2_"+toString(i)+"()\n";
+                        }
+                        else{
+                            function += toString(leftNum << i)+"\n";
+                        }
+                        // function += shl_funcName+"(num)\n";
+                    }
+                    function += "    else 0\n";
+                    function += "}\n";
 
-                return funcName+"("+translate(opBinary->left)+","+translate(opBinary->right)+")";
+                    addFunction(funcName, function);
+
+                    return funcName+"("+translate(opBinary->right)+")";
+                }
+                else{
+                    cstring funcName = "shl."+typeName+"_n";
+
+                    for(int i = 1; i <= size; i++){
+                        cstring shl_function = "";
+                        cstring shl_funcName = "shl."+typeName+"_"+toString(i);
+                        cstring shl_powerFunc = "power_2_"+toString(i)+"()";
+                        shl_function = "function {:inline true} "+shl_funcName+"(num:int) : ";
+                        shl_function += "int {(num*"+shl_powerFunc+")\%"+shl_powerFunc+"}\n";
+                        addFunction(shl_funcName, shl_function);
+                    }
+                    function = "function {:inline true} "+funcName+"(num:int, n:int) : ";
+                    function += "int {\n";
+                    function += "    if(n == 0) then num\n";
+                    for(int i = 1; i < size; i++){
+                        cstring shl_funcName = "shl."+typeName+"_"+toString(i);
+                        function += "    else if(n == "+toString(i)+") then ";
+                        function += shl_funcName+"(num)\n";
+                    }
+                    function += "    else 0\n";
+                    function += "}\n";
+
+                    addFunction(funcName, function);
+
+                    return funcName+"("+translate(opBinary->left)+","+translate(opBinary->right)+")";
+                }
             }
         }
         else if (auto shr = opBinary->to<IR::Shr>()){
@@ -3061,7 +3178,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         // read function
         BoogieProcedure read = BoogieProcedure(name+".read");
         // one parameter, return reg[index]
-        read.addDeclaration("function "+read.getName()+"(reg:["+sizeTypeName+"]"+valueTypeName
+        read.addDeclaration("function {:inline true}"+read.getName()+"(reg:["+sizeTypeName+"]"+valueTypeName
             +", index:"+sizeTypeName+")"+"returns ("+valueTypeName+") {reg[index]}\n");
         addProcedure(read);
 
@@ -3205,6 +3322,7 @@ void Translator::translate(const IR::Type_Header *typeHeader){
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
+    std::cout << "\n// Header "+arg+"\n" << std::endl;
     addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
     addDeclaration("var "+arg+":Ref;\n");
     addGlobalVariables(arg);
@@ -3223,7 +3341,18 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
         cstring fieldName = arg + "." + field->name;
 
         cstring oldFieldName = "_old_"+fieldName;
-        translate(field, "_old_"+arg);
+        if(options.p4ltlSpec){
+            for(auto item:p4ltlSpec){
+                std::set<cstring> oldExprs = ltlTranslator->getOldExprs(item.second);
+                if(oldExprs.find(fieldName) != oldExprs.end()){
+                    translate(field, "_old_"+arg);
+                    break;
+                }
+            }
+        }
+        else{
+            translate(field, "_old_"+arg);
+        }
 
         if(options.bitBlasting){
             if(auto typeBits = field->type->to<IR::Type_Bits>()){
@@ -3246,9 +3375,22 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
             }
             havocProcedure.addModifiedGlobalVariables(fieldName);
 
-            havocProcedure.addStatement("    "+oldFieldName+" := "+
-               fieldName +";\n");
-            havocProcedure.addModifiedGlobalVariables(oldFieldName);
+            if(options.p4ltlSpec){
+                for(auto item:p4ltlSpec){
+                    std::set<cstring> oldExprs = ltlTranslator->getOldExprs(item.second);
+                    if(oldExprs.find(fieldName) != oldExprs.end()){
+                        havocProcedure.addStatement("    "+oldFieldName+" := "+
+                           fieldName +";\n");
+                        havocProcedure.addModifiedGlobalVariables(oldFieldName);
+                        break;
+                    }
+                }
+            }
+            else{
+                havocProcedure.addStatement("    "+oldFieldName+" := "+
+                   fieldName +";\n");
+                havocProcedure.addModifiedGlobalVariables(oldFieldName);
+            }
         }
     }
 }

@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
 #include "backends/verify/translate/translate.h"
 
@@ -41,10 +42,9 @@
 
 const std::vector<cstring> P4LTL_KEYS = {"//#LTLVariables:", "//#LTLProperty:", "//#LTLFairness:"};
 
-bool isAPNode(P4LTL::AstNode* node);
-void getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root);
-std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
-std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root);
+// bool isAPNode(P4LTL::AstNode* node);
+// std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
+// std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root);
 
 class Translator;
 
@@ -73,6 +73,10 @@ public:
 	cstring translateP4LTL(P4LTL::Name* node);
 	cstring translateP4LTL(P4LTL::Key* node);
 	cstring translateP4LTL(P4LTL::ArrayAccessExprssion* node);
+
+	void getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root);
+	std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
+	std::set<cstring> getOldExprs(P4LTL::AstNode* root);
 
 	int getSize(cstring variable);
 

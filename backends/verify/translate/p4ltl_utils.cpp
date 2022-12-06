@@ -1,30 +1,41 @@
 #include "backends/verify/translate/p4ltl_utils.h"
 
-bool isAPNode(P4LTL::AstNode* node){
-	if(dynamic_cast<P4LTL::P4LTLAtomicProposition*>(node) != nullptr)
-		return true;
-	return false;
-}
+// bool isAPNode(P4LTL::AstNode* node){
+// 	if(dynamic_cast<P4LTL::P4LTLAtomicProposition*>(node) != nullptr)
+// 		return true;
+// 	return false;
+// }
 
-void getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root){
+
+// std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root){
+// 	std::vector<P4LTL::AstNode*> aps;
+// 	for(auto child: getAllNodes(root)){
+// 		if(isAPNode(child)) aps.push_back(child);
+// 	}
+// 	return aps;
+// }
+
+void P4LTLTranslator::getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root){
 	nodes.push_back(root);
     for(auto child: root->getOutgoingNodes()){
         getAllNodes(nodes, child);
     }
 }
 
-std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root){
+std::vector<P4LTL::AstNode*> P4LTLTranslator::getAllNodes(P4LTL::AstNode* root){
 	std::vector<P4LTL::AstNode*> nodes;
 	getAllNodes(nodes, root);
 	return nodes;
 }
 
-std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root){
-	std::vector<P4LTL::AstNode*> aps;
-	for(auto child: getAllNodes(root)){
-		if(isAPNode(child)) aps.push_back(child);
+std::set<cstring> P4LTLTranslator::getOldExprs(P4LTL::AstNode* root){
+	std::set<cstring> res;
+	for(auto node:getAllNodes(root)){
+		if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
+			res.insert(oldExpression->getValue());
+		}
 	}
-	return aps;
+	return res;
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
