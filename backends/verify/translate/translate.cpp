@@ -8,11 +8,11 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnal
     mainProcedure = BoogieProcedure("mainProcedure");
     mainProcedure.addDeclaration("procedure mainProcedure()\n");
     mainProcedure.addStatement("    call clear_forward();\n");
-    mainProcedure.addSucc("clear_forward");
-    addPred("clear_forward", "mainProcedure");
-    mainProcedure.addStatement("    call clear_drop();\n");
-    mainProcedure.addSucc("clear_drop");
-    addPred("clear_drop", "mainProcedure");
+    // mainProcedure.addSucc("clear_forward");
+    // addPred("clear_forward", "mainProcedure");
+    // mainProcedure.addStatement("    call clear_drop();\n");
+    // mainProcedure.addSucc("clear_drop");
+    // addPred("clear_drop", "mainProcedure");
     // mainProcedure.addStatement("    call clear_valid();\n");
     // mainProcedure.addSucc("clear_valid");
     // addPred("clear_valid", "mainProcedure");
@@ -67,6 +67,11 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnal
     addGlobalVariables("size");
     declaration += "var drop:bool;\n";
     addGlobalVariables("drop");
+
+    havocProcedure.addStatement("    drop := false;\n");
+    havocProcedure.addModifiedGlobalVariables("drop");
+    havocProcedure.addStatement("    forward := false;\n");
+    havocProcedure.addModifiedGlobalVariables("forward");
 
     headers = std::map<cstring, const IR::Type_Header*>();
     structs = std::map<cstring, const IR::Type_Struct*>();
@@ -388,8 +393,8 @@ void Translator::writeToFile(){
                 std::abort();
             }
             addGlobalVariables(item.second);
-            havocProcedure.addStatement("    havoc "+item.second+";\n");
-            havocProcedure.addModifiedGlobalVariables(item.second);
+            // havocProcedure.addStatement("    havoc "+item.second+";\n");
+            // havocProcedure.addModifiedGlobalVariables(item.second);
         }
         for(cstring variable:ltlTranslator->getVariables()){
             addGlobalVariables(variable);
@@ -3094,6 +3099,12 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
             else
                 deparser = translate(argument->expression);
         }
+        main.addStatement(getIndent()+"if(forward == false){\n");
+        incIndent();
+        main.addStatement(getIndent()+"drop := true;\n");
+        decIndent();
+        main.addStatement(getIndent()+"}\n");
+
         decIndent();
 
         // add children
@@ -3268,16 +3279,21 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     else if(field->type->node_type_name() == "Type_Bits"){
         auto typeBits = field->type->to<IR::Type_Bits>();
         updateMaxBitvectorSize(typeBits);
+        cstring fieldName = arg+"."+field->name;
         if(options.bitBlasting){
-            bitBlastingTempDecl(arg+"."+field->name, typeBits->size);
+            bitBlastingTempDecl(fieldName, typeBits->size);
         }
         else if(options.ultimateAutomizer){
-            addDeclaration("var "+arg+"."+field->name+":int;\n");
+            addDeclaration("var "+fieldName+":int;\n");
         }
         else
-            addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeBits->size)+";\n");
-        addGlobalVariables(arg+"."+field->name);
-        updateVariableSize(arg+"."+field->name, typeBits->size);
+            addDeclaration("var "+fieldName+":bv"+std::to_string(typeBits->size)+";\n");
+        addGlobalVariables(fieldName);
+        updateVariableSize(fieldName, typeBits->size);
+        if(fieldName.startsWith("meta.") || fieldName.startsWith("standard_metadata.")){
+            havocProcedure.addStatement("    "+fieldName+" := 0;\n");
+            havocProcedure.addModifiedGlobalVariables(fieldName);
+        }
     }
     else if(field->type->node_type_name() == "Type_Varbits"){
         auto typeVarbits = field->type->to<IR::Type_Varbits>();
@@ -3642,6 +3658,7 @@ void Translator::translate(const IR::P4Table *p4Table){
     BoogieProcedure table = BoogieProcedure(tableName);
     table.addDeclaration("\n// Table "+name+"\n");
     table.addDeclaration("procedure {:inline 1} "+tableName+"()\n");
+    table.setImplemented();
     addDeclaration("\n// Table "+name+" Actionlist Declaration\n");
     addDeclaration("type "+name+".action;\n");
     incIndent();

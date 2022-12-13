@@ -105,16 +105,25 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 				cstring size = p4Translator->toString(sizeLeft);
 				cstring powerFunc = "power_2_"+size+"()";
             	cstring funcName = "";
-            	if(extendedCompOp->getOp() == " == ") funcName = "beq.bv"+size;
-            	else if(extendedCompOp->getOp() == " > ") funcName = "bugt.bv"+size;
-            	else if(extendedCompOp->getOp() == " >= ") funcName = "bsge.bv"+size;
-            	else if(extendedCompOp->getOp() == " != ") funcName = "bneq.bv"+size;
-            	else if(extendedCompOp->getOp() == " < ") funcName = "bult.bv"+size;
-            	else if(extendedCompOp->getOp() == " <= ") funcName = "bsle.bv"+size;
-            	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{((left\%"
-            		+powerFunc+")"+extendedCompOp->getOp()+"(right\%"+powerFunc+"))}\n";
-            	p4Translator->addFunction(funcName, function);
-            	addStatement(variable+" := "+funcName+"("+left+", "+right+");\n");
+            	addStatement(variable+" := ("+left+extendedCompOp->getOp()+right+");\n");
+            	// // if(extendedCompOp->getOp() == " == ") funcName = "beq.bv"+size;
+            	// if(extendedCompOp->getOp() == " == ") {
+	            // 	addStatement(variable+" := ("+left+" == "+right+");\n");
+            	// }
+            	// // else if(extendedCompOp->getOp() == " != ") funcName = "bneq.bv"+size;
+            	// else if(extendedCompOp->getOp() == " != "){
+	            // 	addStatement(variable+" := ("+left+" != "+right+");\n");
+            	// }
+            	// else{
+	            // 	if(extendedCompOp->getOp() == " > ") funcName = "bugt.bv"+size;
+	            // 	else if(extendedCompOp->getOp() == " >= ") funcName = "bsge.bv"+size;
+	            // 	else if(extendedCompOp->getOp() == " < ") funcName = "bult.bv"+size;
+	            // 	else if(extendedCompOp->getOp() == " <= ") funcName = "bsle.bv"+size;
+	            // 	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{((left\%"
+	            // 		+powerFunc+")"+extendedCompOp->getOp()+"(right\%"+powerFunc+"))}\n";
+	            // 	p4Translator->addFunction(funcName, function);
+	            // 	addStatement(variable+" := "+funcName+"("+left+", "+right+");\n");
+            	// }
 			}
 		}
 		else{

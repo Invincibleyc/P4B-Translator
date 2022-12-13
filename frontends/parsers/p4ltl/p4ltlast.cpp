@@ -146,7 +146,9 @@ std::string UnaryTemporalOperator::getOp() const
 // Class AP
 P4LTLAtomicProposition::P4LTLAtomicProposition(AstNode* p)
 :p(p)
-{}
+{
+    this->addOutgoing(p);
+}
 
 std::string P4LTLAtomicProposition::toString() const
 {
