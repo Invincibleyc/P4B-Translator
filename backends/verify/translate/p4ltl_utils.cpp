@@ -243,7 +243,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::Name* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::Key* node){
-	return node->toString();
+	return node->table+"."+node->key;
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::ArrayAccessExprssion* node){

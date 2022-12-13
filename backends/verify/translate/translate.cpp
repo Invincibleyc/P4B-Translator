@@ -3692,6 +3692,22 @@ void Translator::translate(const IR::P4Table *p4Table){
             }
         }
     }
+    else{
+        for(auto property:p4Table->properties->properties){
+            if (auto key = property->value->to<IR::Key>()) {
+                for(auto keyElement:key->keyElements){
+                    cstring expr = translate(keyElement->expression);
+                    if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
+                        cstring tableKey = name+"."+expr;
+                        addDeclaration("var "+tableKey+":int;\n");
+                        addGlobalVariables(tableKey);
+                        table.addModifiedGlobalVariables(tableKey);
+                        table.addStatement(getIndent()+tableKey+" := "+expr+";\n");           
+                    }
+                }
+            }
+        }
+    }
 
     {
         cstring tableIsApplied = name+".isApplied";
