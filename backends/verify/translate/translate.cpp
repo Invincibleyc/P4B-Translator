@@ -3633,6 +3633,15 @@ void Translator::translate(const IR::P4Action *p4Action){
     }
     action.addDeclaration(")\n");
     incIndent();
+    {
+        cstring actionIsApplied = actionName+".isApplied";
+        addDeclaration("var "+actionIsApplied+":bool;\n");
+        addGlobalVariables(actionIsApplied);
+        action.addStatement("\n    "+actionIsApplied+" := true;\n");
+        action.addModifiedGlobalVariables(actionIsApplied);
+        havocProcedure.addStatement("    "+actionIsApplied+" := false;\n");
+        havocProcedure.addModifiedGlobalVariables(actionIsApplied);
+    }
     action.addStatement(translate(p4Action->body));
     decIndent();
     addProcedure(action);
@@ -3684,8 +3693,15 @@ void Translator::translate(const IR::P4Table *p4Table){
         }
     }
 
-
-    // table.addStatement("\n    call "+tableName+"_table_entry"+"();\n");
+    {
+        cstring tableIsApplied = name+".isApplied";
+        addDeclaration("var "+tableIsApplied+":bool;\n");
+        addGlobalVariables(tableIsApplied);
+        table.addStatement("\n    "+tableIsApplied+" := true;\n");
+        table.addModifiedGlobalVariables(tableIsApplied);
+        havocProcedure.addStatement("    "+tableIsApplied+" := false;\n");
+        havocProcedure.addModifiedGlobalVariables(tableIsApplied);
+    }
 
 
     // std::cout << tableName << std::endl;
@@ -3707,8 +3723,14 @@ void Translator::translate(const IR::P4Table *p4Table){
                                 table.addFrontStatement("    var "+connect(parameterName, i)+":bool;\n");
                             }
                         }
-                        else
-                            table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                        else{
+                            cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                            // table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                            addDeclaration("var "+name+"."+actionName+"."+translate(parameter)+";\n");
+                            addGlobalVariables(parameterName);
+                            havocProcedure.addModifiedGlobalVariables(parameterName);
+                            havocProcedure.addStatement("    havoc "+parameterName+";\n");
+                        }
                     }
                 }
             }
@@ -3797,8 +3819,10 @@ void Translator::translate(const IR::P4Table *p4Table){
                                 }
                                 table.addStatement(stmt);
                             }
-                            else
-                                table.addStatement(actionName+"."+translate(parameter->name));
+                            else{
+                                cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                table.addStatement(parameterName);
+                            }
                             if(cnt2 != 0)
                                 table.addStatement(", ");
                         }
