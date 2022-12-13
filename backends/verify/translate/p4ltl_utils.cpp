@@ -210,7 +210,13 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::Predicate* node){
 		return valid->getHeader()+".valid == true";
 	}
 	else if(auto apply = dynamic_cast<P4LTL::Apply*>(node)){
-		return apply->toString();
+		if(apply.getAction().empty()){
+			return apply.getTable()+".isApplied == true";
+		}
+		else {
+			return apply.getTable()+".isApplied == true && "+
+				apply.getAction()+".isApplied == true";
+		}
 	}
 	else return node->toString();
 }
