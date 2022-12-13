@@ -7,7 +7,7 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnal
     cstring mainProcedureDeclaration;
     mainProcedure = BoogieProcedure("mainProcedure");
     mainProcedure.addDeclaration("procedure mainProcedure()\n");
-    mainProcedure.addStatement("    call clear_forward();\n");
+    // mainProcedure.addStatement("    call clear_forward();\n");
     // mainProcedure.addSucc("clear_forward");
     // addPred("clear_forward", "mainProcedure");
     // mainProcedure.addStatement("    call clear_drop();\n");
@@ -92,17 +92,17 @@ BoogieProcedure Translator::getMainProcedure(){
 }
 
 void Translator::addNecessaryProcedures(){
-    BoogieProcedure clearForward = BoogieProcedure("clear_forward");
-    clearForward.addDeclaration("procedure clear_forward();\n");
-    clearForward.addDeclaration("    ensures forward==false;\n");
-    clearForward.addModifiedGlobalVariables("forward");
-    addProcedure(clearForward);
+    // BoogieProcedure clearForward = BoogieProcedure("clear_forward");
+    // clearForward.addDeclaration("procedure clear_forward();\n");
+    // clearForward.addDeclaration("    ensures forward==false;\n");
+    // clearForward.addModifiedGlobalVariables("forward");
+    // addProcedure(clearForward);
 
-    BoogieProcedure clearDrop = BoogieProcedure("clear_drop");
-    clearDrop.addDeclaration("procedure clear_drop();\n");
-    clearDrop.addDeclaration("    ensures drop==false;\n");
-    clearDrop.addModifiedGlobalVariables("drop");
-    addProcedure(clearDrop);
+    // BoogieProcedure clearDrop = BoogieProcedure("clear_drop");
+    // clearDrop.addDeclaration("procedure clear_drop();\n");
+    // clearDrop.addDeclaration("    ensures drop==false;\n");
+    // clearDrop.addModifiedGlobalVariables("drop");
+    // addProcedure(clearDrop);
 
     // BoogieProcedure clearValid = BoogieProcedure("clear_valid");
     // clearValid.addDeclaration("procedure clear_valid();\n");
@@ -3075,10 +3075,10 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
             // }
             main.addStatement(getIndent()+"call havocProcedure();\n");
             main.addSucc(havocProcedure.getName());
-            main.addStatement(getIndent()+"call clear_drop();\n");
-            main.addSucc("clear_drop");
-            main.addStatement(getIndent()+"call clear_forward();\n");
-            main.addSucc("clear_forward");
+            // main.addStatement(getIndent()+"call clear_drop();\n");
+            // main.addSucc("clear_drop");
+            // main.addStatement(getIndent()+"call clear_forward();\n");
+            // main.addSucc("clear_forward");
             addPred(havocProcedure.getName(), name);
         }
 
