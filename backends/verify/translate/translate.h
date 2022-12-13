@@ -52,7 +52,7 @@ private:
 	int maxBitvectorSize;
 	std::map<cstring, int> sizes; // 0 means bool
 
-	std::map<cstring, P4LTL::AstNode*> p4ltlSpec;
+	std::map<cstring, std::vector<P4LTL::AstNode*>> p4ltlSpec;
 	P4LTLTranslator* ltlTranslator;
 
 public:
@@ -86,7 +86,6 @@ public:
 
 	// P4LTL Specification
 	void setP4LTLSpec(cstring key, P4LTL::AstNode* root);
-	P4LTL::AstNode* getP4LTLSpec(cstring key);
 	void setP4LTLFreeVars(cstring decl);
 
 	// For Ultimate Automizer (bitvector to integer)

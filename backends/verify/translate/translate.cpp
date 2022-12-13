@@ -264,12 +264,8 @@ void Translator::addPred(cstring proc, cstring predProc){
     pred[proc].push_back(predProc);
 }
 
-P4LTL::AstNode* Translator::getP4LTLSpec(cstring key){
-    return p4ltlSpec[key];
-}
-
 void Translator::setP4LTLSpec(cstring key, P4LTL::AstNode* root){
-    p4ltlSpec[key] = root;
+    p4ltlSpec[key].push_back(root);
 }
 
 void Translator::setP4LTLFreeVars(cstring decl){
@@ -381,9 +377,11 @@ void Translator::writeToFile(){
     if(options.p4ltlSpec){
         for(cstring str:P4LTL_KEYS){
             if(p4ltlSpec.find(str) != p4ltlSpec.end()){
-                cstring cont = ltlTranslator->translateP4LTL(p4ltlSpec[str]);
-                std::cout << str << std::endl << " " << cont << std::endl;
-                out << str << " " << cont << "\n";
+                for(auto spec:p4ltlSpec[str]){
+                    cstring cont = ltlTranslator->translateP4LTL(spec);
+                    std::cout << str << std::endl << " " << cont << std::endl;
+                    out << str << " " << cont << "\n";
+                }
             }
         }
         out << "\n";
@@ -3361,10 +3359,12 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
         cstring oldFieldName = "_old_"+fieldName;
         if(options.p4ltlSpec){
             for(auto item:p4ltlSpec){
-                std::set<cstring> oldExprs = ltlTranslator->getOldExprs(item.second);
-                if(oldExprs.find(fieldName) != oldExprs.end()){
-                    translate(field, "_old_"+arg);
-                    break;
+                for(auto spec:item.second){
+                    std::set<cstring> oldExprs = ltlTranslator->getOldExprs(spec);
+                    if(oldExprs.find(fieldName) != oldExprs.end()){
+                        translate(field, "_old_"+arg);
+                        break;
+                    }
                 }
             }
         }
@@ -3397,12 +3397,14 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
 
             if(options.p4ltlSpec){
                 for(auto item:p4ltlSpec){
-                    std::set<cstring> oldExprs = ltlTranslator->getOldExprs(item.second);
-                    if(oldExprs.find(fieldName) != oldExprs.end()){
-                        havocProcedure.addStatement("    "+oldFieldName+" := "+
-                           fieldName +";\n");
-                        havocProcedure.addModifiedGlobalVariables(oldFieldName);
-                        break;
+                    for(auto spec:item.second){
+                        std::set<cstring> oldExprs = ltlTranslator->getOldExprs(spec);
+                        if(oldExprs.find(fieldName) != oldExprs.end()){
+                            havocProcedure.addStatement("    "+oldFieldName+" := "+
+                               fieldName +";\n");
+                            havocProcedure.addModifiedGlobalVariables(oldFieldName);
+                            break;
+                        }
                     }
                 }
             }

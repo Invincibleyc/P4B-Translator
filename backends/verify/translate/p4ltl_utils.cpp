@@ -210,12 +210,12 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::Predicate* node){
 		return valid->getHeader()+".valid == true";
 	}
 	else if(auto apply = dynamic_cast<P4LTL::Apply*>(node)){
-		if(apply.getAction().empty()){
-			return apply.getTable()+".isApplied == true";
+		if(apply->getAction().empty()){
+			return apply->getTable()+".isApplied == true";
 		}
 		else {
-			return apply.getTable()+".isApplied == true && "+
-				apply.getAction()+".isApplied == true";
+			return apply->getTable()+".isApplied == true && "+
+				apply->getAction()+".isApplied == true";
 		}
 	}
 	else return node->toString();
@@ -243,7 +243,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::Name* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::Key* node){
-	return node->table+"."+node->key;
+	return node->getTable()+"."+node->getKey();
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::ArrayAccessExprssion* node){
