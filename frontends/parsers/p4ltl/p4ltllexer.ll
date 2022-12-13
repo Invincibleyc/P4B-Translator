@@ -70,7 +70,7 @@ HexIntegerLiteral [0][xX][0-9a-fA-F]+
 <PREDICATE>"fwd"					{echoToken(yytext); return token::FWD; }
 <PREDICATE>"drop"					{echoToken(yytext); return token::DROP; }
 <PREDICATE>"valid"					{echoToken(yytext); return token::VALID; }
-<PREDICATE>"apply"					{echoToken(yytext); return token::APPLY; }
+<PREDICATE>"Apply"					{echoToken(yytext); return token::APPLY; }
 <PREDICATE>"["						{echoToken(yytext); return token::LBRACKET; }
 <PREDICATE>"]"						{echoToken(yytext); return token::RBRACKET; }
 
