@@ -192,13 +192,14 @@ public:
 };
 
 // Term Part
+typedef unsigned long long int INT_TYPE;
 class IntLiteral: public AstNode
 {
 private:
-    int value;
+    INT_TYPE value;
 public:
-    int getValue() const;
-    IntLiteral(int val);
+    INT_TYPE getValue() const;
+    IntLiteral(INT_TYPE val);
     std::string toString() const;
 };
 
@@ -234,7 +235,7 @@ class BinaryTermOperator: public BinOpNode
 public:
     enum BinaryTermOperatorType
     {
-        Plus, Minus, Multiply
+        Plus, Minus, Multiply, Divide
     };    
 private:
     BinaryTermOperatorType type;

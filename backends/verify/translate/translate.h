@@ -49,6 +49,8 @@ private:
 	int switchStatementCount = 0;
 	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
 
+	bool addTableRules = true;
+
 	int maxBitvectorSize;
 	std::map<cstring, int> sizes; // 0 means bool
 

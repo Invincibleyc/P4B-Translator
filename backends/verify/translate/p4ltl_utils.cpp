@@ -28,6 +28,7 @@ std::vector<P4LTL::AstNode*> P4LTLTranslator::getAllNodes(P4LTL::AstNode* root){
 	return nodes;
 }
 
+
 std::set<cstring> P4LTLTranslator::getOldExprs(P4LTL::AstNode* root){
 	std::set<cstring> res;
 	for(auto node:getAllNodes(root)){
@@ -36,6 +37,18 @@ std::set<cstring> P4LTLTranslator::getOldExprs(P4LTL::AstNode* root){
 		}
 	}
 	return res;
+}
+
+bool P4LTLTranslator::isActionApplied(P4LTL::AstNode* root, cstring action){
+	for(auto node:getAllNodes(root)){
+		if(auto apply = dynamic_cast<P4LTL::Apply*>(node)){
+			if(!apply->getAction().empty()){
+				cstring applyAction = apply->getAction();
+				if(action == applyAction) return true;
+			}
+		}
+	}
+	return false;
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
@@ -81,8 +94,15 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 	}
 	else if(auto extendedCompOp = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(node)){
 		// std::cout << "ExtendedComparativeOperator" << std::endl << node->getOp() << std::endl;
-		
+		cstring expr = extendedCompOp->toString();
+		if(alreadyDeclared(expr)){
+			return "("+getCacheVariable(expr)+" == true)";
+		}
+
 		cstring variable = TempVariable::getPrefix("_p4ltl_");
+
+		cache[expr] = variable;
+
 		addVariable(variable);
 		addDeclaration("\nvar "+variable+":bool;\n");
 
@@ -144,8 +164,16 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 	else if(auto binTermOp = dynamic_cast<P4LTL::BinaryTermOperator*>(node)){
 		// std::cout << "BinaryTermOperator" << std::endl << node->getOp() << std::endl;
 
+		cstring expr = binTermOp->toString();
+		if(alreadyDeclared(expr)){
+			return "("+getCacheVariable(expr)+" == true)";
+		}
+
 		cstring variable = TempVariable::getPrefix("_p4ltl_");
 		addVariable(variable);
+
+		cache[expr] = variable;
+
 		addDeclaration("\nvar "+variable+":int;\n");
 
 		cstring left = translateP4LTL(binTermOp->getLeft());
@@ -210,13 +238,26 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::Predicate* node){
 		return valid->getHeader()+".valid == true";
 	}
 	else if(auto apply = dynamic_cast<P4LTL::Apply*>(node)){
+		cstring expr = apply->toString();
+		if(alreadyDeclared(expr)){
+			return "("+getCacheVariable(expr)+" == true)";
+		}
+
+		cstring variable = TempVariable::getPrefix("_p4ltl_");
+		addVariable(variable);
+
+		cache[expr] = variable;
+
+		addDeclaration("\nvar "+variable+":bool;\n");
+
 		if(apply->getAction().empty()){
-			return apply->getTable()+".isApplied == true";
+			addStatement(variable+" := ("+apply->getTable()+".isApplied == true);\n");
 		}
 		else {
-			return apply->getTable()+".isApplied == true && "+
-				apply->getAction()+".isApplied == true";
+			addStatement(variable+" := ("+apply->getTable()+".isApplied == true && "+
+				apply->getAction()+".isApplied == true);\n");
 		}
+		return "("+variable+" == true)";
 	}
 	else return node->toString();
 }
@@ -340,4 +381,16 @@ std::vector<cstring> P4LTLTranslator::getDeclarations(){
 
 void P4LTLTranslator::addDeclaration(cstring declaration){
 	declarations.push_back(declaration);
+}
+
+bool P4LTLTranslator::alreadyDeclared(cstring expr){
+	if(cache.find(expr) != cache.end()) return true;
+	return false;
+}
+
+cstring P4LTLTranslator::getCacheVariable(cstring expr){
+	if(alreadyDeclared(expr)){
+		return cache[expr];
+	}
+	return nullptr;
 }

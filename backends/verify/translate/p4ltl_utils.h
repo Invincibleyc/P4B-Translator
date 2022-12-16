@@ -56,6 +56,8 @@ class P4LTLTranslator{
 	std::map<cstring, cstring> freeVars;
 	std::map<cstring, int> sizes;
 
+	std::map<cstring, cstring> cache;
+
 public:
 	P4LTLTranslator(){
 		p4Translator = nullptr;
@@ -78,6 +80,8 @@ public:
 	std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
 	std::set<cstring> getOldExprs(P4LTL::AstNode* root);
 
+	bool isActionApplied(P4LTL::AstNode* root, cstring action);
+
 	int getSize(cstring variable);
 
 	std::map<cstring, cstring> getFreeVariables();
@@ -93,6 +97,9 @@ public:
 
 	std::vector<cstring> getDeclarations();
 	void addDeclaration(cstring declaration);
+
+	bool alreadyDeclared(cstring expr);
+	cstring getCacheVariable(cstring expr);
 
 };
 

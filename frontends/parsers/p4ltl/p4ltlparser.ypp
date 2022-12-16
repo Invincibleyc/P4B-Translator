@@ -39,7 +39,7 @@ namespace P4LTL
 %token PLUS MINUS GT GEQ LT LEQ
 %token OLD KEY TRUE FALSE
 %token<char*>     NAME
-%token<int> INT
+%token<unsigned long long int> INT
 
 // Non-exprinals
 %type<AstNode*>  texpr predicate term identifier p4ltl
@@ -54,7 +54,7 @@ namespace P4LTL
 %left EQ NEQ
 %left LT LEQ GEQ GT
 %left PLUS MINUS
-%left MULTIPLY
+%left MULTIPLY DIVIDE
 %left NEG
 
 %start p4ltl
@@ -160,6 +160,8 @@ term
 	{$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Minus, $1, $3); }
 	| term MULTIPLY term
 	{$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Multiply, $1, $3); }
+    | term DIVIDE term
+    {$$ = new BinaryTermOperator(BinaryTermOperator::BinaryTermOperatorType::Divide, $1, $3); }
     | LPAR term RPAR
 	{$$ = $2; }
 	| identifier	

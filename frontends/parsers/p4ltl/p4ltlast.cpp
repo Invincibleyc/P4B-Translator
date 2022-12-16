@@ -358,11 +358,11 @@ std::string UnaryPredicateOperator::getOp() const
 
 /*Term part*/
 // Class Int
-IntLiteral::IntLiteral(int val)
+IntLiteral::IntLiteral(INT_TYPE val)
 :value(val)
 {}
 
-int IntLiteral::getValue() const
+INT_TYPE IntLiteral::getValue() const
 {
     return this->value;
 }
@@ -438,12 +438,15 @@ std::string BinaryTermOperator::getOp() const
     case Multiply:
         op = " * ";
         break;
+    case Divide:
+        op = " / ";
+        break;
     default:
         break;
     }
     
     if(op.empty())
-        throw std::invalid_argument("Binary Temporal Time Initilization error, type is" + 
+        throw std::invalid_argument("Binary Temporal Time Initilization error, type number is " + 
         std::to_string(type));
     
     return op;
