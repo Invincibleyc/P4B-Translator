@@ -6,6 +6,7 @@
 #include <set>
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
 #include "backends/verify/translate/translate.h"
+#include "backends/verify/translate/utils.h"
 
 /*
 	## AST Node Types ##
@@ -83,6 +84,9 @@ public:
 	bool isActionApplied(P4LTL::AstNode* root, cstring action);
 
 	int getSize(cstring variable);
+
+	bool isBvType(cstring type);
+	int getBvLength(cstring type);
 
 	std::map<cstring, cstring> getFreeVariables();
 	void addFreeVariable(cstring variable);

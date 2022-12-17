@@ -166,7 +166,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 
 		cstring expr = binTermOp->toString();
 		if(alreadyDeclared(expr)){
-			return "("+getCacheVariable(expr)+" == true)";
+			return getCacheVariable(expr);
 		}
 
 		cstring variable = TempVariable::getPrefix("_p4ltl_");
@@ -197,7 +197,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
             	cstring funcName = "";
             	if(binTermOp->getOp() == " + ") funcName = "add.bv"+size;
             	else if(binTermOp->getOp() == " - ") funcName = "sub.bv"+size;
-            	else if(binTermOp->getOp() == " * ") funcName = "add.bv"+size;
+            	else if(binTermOp->getOp() == " * ") funcName = "mul.bv"+size;
             	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
                 	"(left\%"+powerFunc+")+(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
             	p4Translator->addFunction(funcName, function);
@@ -314,6 +314,23 @@ bool P4LTLTranslator::isFreeVariable(cstring variable){
 	return freeVars.find(variable) != freeVars.end();
 }
 
+bool P4LTLTranslator::isBvType(cstring type){
+	std::string str = type.c_str();
+	if(str.size() < 3) return false;
+	if(str[0]=='b' && str[1]=='v'){
+		return isNumber(str.substr(2));
+	}
+	return false;
+}
+
+int P4LTLTranslator::getBvLength(cstring type){
+	if(isBvType(type)){
+		std::string str = type.c_str();
+		return atoi(str.substr(2).c_str());
+	}
+	return -1;
+}
+
 void P4LTLTranslator::addFreeVariable(cstring variable){
 	std::string str = variable.c_str();
 	int idx = str.find(':');
@@ -325,12 +342,19 @@ void P4LTLTranslator::addFreeVariable(cstring variable){
 	cstring name, type;
 	name = str.substr(0, idx);
 	type = str.substr(idx+1);
-	if(type != "bool" && type != "int"){
+	if(type != "bool" && type != "int" && !isBvType(type)){
 		std::cout << "ERROR: Unsupported type \""<< type << "\"" << std::endl; 
 		std::abort();
 	}
 	freeVars[name] = "_p4ltl_free_"+name;
-	addDeclaration("\nvar "+freeVars[name]+":"+type+";\n");
+	if(isBvType(type)){
+		int length = getBvLength(type);
+		sizes["_p4ltl_free_"+name] = length;
+		addDeclaration("\nvar "+freeVars[name]+":int;\n");
+	}
+	else{
+		addDeclaration("\nvar "+freeVars[name]+":"+type+";\n");
+	}
 }
 
 void P4LTLTranslator::createFreeVariables(cstring decl){

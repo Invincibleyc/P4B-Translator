@@ -3648,7 +3648,7 @@ void Translator::translate(const IR::P4Action *p4Action){
             }
             if(existInSpec) break;
         }
-        // if(existInSpec){
+        if(existInSpec){
             cstring actionIsApplied = actionName+".isApplied";
             addDeclaration("var "+actionIsApplied+":bool;\n");
             addGlobalVariables(actionIsApplied);
@@ -3656,7 +3656,7 @@ void Translator::translate(const IR::P4Action *p4Action){
             action.addModifiedGlobalVariables(actionIsApplied);
             havocProcedure.addStatement("    "+actionIsApplied+" := false;\n");
             havocProcedure.addModifiedGlobalVariables(actionIsApplied);
-        // }
+        }
     }
     action.addStatement(translate(p4Action->body));
     decIndent();
@@ -3728,7 +3728,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                         }
                         if(existInSpec) break;
                     }
-                    std::cout << tableKeySpec << ": " << existInSpec << std::endl << std::endl;;
+                    // std::cout << tableKeySpec << ": " << existInSpec << std::endl << std::endl;;
                     if(!existInSpec) continue;
                     if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
                         cstring tableKey = name+"."+expr;
@@ -3764,7 +3764,7 @@ void Translator::translate(const IR::P4Table *p4Table){
             }
             if(existInSpec) break;
         }
-        // if(existInSpec){
+        if(existInSpec){
             cstring tableIsApplied = name+".isApplied";
             addDeclaration("var "+tableIsApplied+":bool;\n");
             addGlobalVariables(tableIsApplied);
@@ -3772,7 +3772,7 @@ void Translator::translate(const IR::P4Table *p4Table){
             table.addModifiedGlobalVariables(tableIsApplied);
             havocProcedure.addStatement("    "+tableIsApplied+" := false;\n");
             havocProcedure.addModifiedGlobalVariables(tableIsApplied);
-        // }
+        }
     }
 
 
