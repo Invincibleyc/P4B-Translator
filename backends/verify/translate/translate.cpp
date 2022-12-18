@@ -3266,8 +3266,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         else{
             auto typeName = field->type->to<IR::Type_Name>();
             cstring name = translate(typeName->path);
-            addDeclaration("var "+arg+"."+field->name+":"+name+";\n");
-            addGlobalVariables(arg+"."+field->name);
+            cstring fieldName = arg+"."+field->name;
+            if(isGlobalVariable(fieldName)) return;
+            addDeclaration("var "+fieldName+":"+name+";\n");
+            addGlobalVariables(fieldName);
         }
 
         // std::cout << "finding " << fieldName << std::endl;
@@ -3278,6 +3280,7 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         auto typeBits = field->type->to<IR::Type_Bits>();
         updateMaxBitvectorSize(typeBits);
         cstring fieldName = arg+"."+field->name;
+        if(isGlobalVariable(fieldName)) return;
         if(options.bitBlasting){
             bitBlastingTempDecl(fieldName, typeBits->size);
         }
@@ -3295,17 +3298,19 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     }
     else if(field->type->node_type_name() == "Type_Varbits"){
         auto typeVarbits = field->type->to<IR::Type_Varbits>();
+        cstring fieldName = arg+"."+field->name;
         // std::cout << "Type_Varbits " << typeVarbits->size << std::endl;
         // updateMaxBitvectorSize(typeVarbits->size);
+        if(isGlobalVariable(fieldName)) return;
         if(options.bitBlasting){
-            bitBlastingTempDecl(arg+"."+field->name, typeVarbits->size);
+            bitBlastingTempDecl(fieldName, typeVarbits->size);
         }
         else if(options.ultimateAutomizer){
-            addDeclaration("var "+arg+"."+field->name+":int;\n");
+            addDeclaration("var "+fieldName+":int;\n");
         }
         else
-            addDeclaration("var "+arg+"."+field->name+":bv"+std::to_string(typeVarbits->size)+";\n");
-        addGlobalVariables(arg+"."+field->name);
+            addDeclaration("var "+fieldName+":bv"+std::to_string(typeVarbits->size)+";\n");
+        addGlobalVariables(fieldName);
         // updateVariableSize(arg+"."+field->name, typeVarbits->size);
     }
     else if(field->type->node_type_name() == "Type_Stack"){
@@ -3316,8 +3321,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     }
     else if(field->type->node_type_name() == "Type_Typedef"){
         auto typeTypedef = field->type->to<IR::Type_Typedef>();
-        addDeclaration("var "+arg+"."+field->name+":"+translate(typeTypedef->name)+";\n");
-        addGlobalVariables(arg+"."+field->name);
+        cstring fieldName = arg+"."+field->name;
+        if(isGlobalVariable(fieldName)) return;
+        addDeclaration("var "+fieldName+":"+translate(typeTypedef->name)+";\n");
+        addGlobalVariables(fieldName);
     }
 }
 
@@ -3833,7 +3840,7 @@ void Translator::translate(const IR::P4Table *p4Table){
 
                 cnt = actionList->actionList.size();
                 bool firstAction = true;
-                std::cout << tableName << " " << cnt << std::endl;
+                // std::cout << tableName << " " << cnt << std::endl;
                 for(auto actionElement:actionList->actionList){
                     // if(actionList->actionList.size()!=1){
                     //     table.addStatement(getIndent()+"assume(");
@@ -3843,10 +3850,10 @@ void Translator::translate(const IR::P4Table *p4Table){
                     cnt--;
                     // if(cnt == 0)
                     //     break;
-                    std::cout << "action: " << actionElement->expression->toString() << std::endl;
+                    // std::cout << "action: " << actionElement->expression->toString() << std::endl;
                     if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                         cstring actionName = translate(actionCallExpr->method);
-                        std::cout << "action: " << actionName << std::endl;
+                        // std::cout << "action: " << actionName << std::endl;
                         std::string label("\n"+getIndent());
                         label += "action_"; label += actionName; label += ":\n";
                         if(options.gotoOrIf){
