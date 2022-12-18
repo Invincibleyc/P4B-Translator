@@ -3833,6 +3833,7 @@ void Translator::translate(const IR::P4Table *p4Table){
 
                 cnt = actionList->actionList.size();
                 bool firstAction = true;
+                std::cout << tableName << " " << cnt << std::endl;
                 for(auto actionElement:actionList->actionList){
                     // if(actionList->actionList.size()!=1){
                     //     table.addStatement(getIndent()+"assume(");
@@ -3840,11 +3841,12 @@ void Translator::translate(const IR::P4Table *p4Table){
                     
                     // NoAction should not be considered
                     cnt--;
-                    if(cnt == 0)
-                        break;
+                    // if(cnt == 0)
+                    //     break;
+                    std::cout << "action: " << actionElement->expression->toString() << std::endl;
                     if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                         cstring actionName = translate(actionCallExpr->method);
-
+                        std::cout << "action: " << actionName << std::endl;
                         std::string label("\n"+getIndent());
                         label += "action_"; label += actionName; label += ":\n";
                         if(options.gotoOrIf){
@@ -3932,6 +3934,8 @@ void Translator::translate(const IR::P4Table *p4Table){
 
     addDeclaration("var "+name+".action_run : "+name+".action;\n");
     addGlobalVariables(name+".action_run");
+    havocProcedure.addStatement("    havoc "+name+".action_run;\n");
+    havocProcedure.addModifiedGlobalVariables(name+".action_run");
     addDeclaration("var "+name+".hit : bool;\n");
     decIndent();
     addProcedure(table);
@@ -4137,7 +4141,7 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
     for(auto actionElement:actionList->actionList){
         cnt--;
         // NoAction should not be considered
-        if(cnt == 0) break;
+        // if(cnt == 0) break;
         if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
             cstring actionName = translate(actionCallExpr->method);
             addDeclaration("const unique "+arg+"."+actionName+" : "+arg+";\n");
@@ -4149,9 +4153,9 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
         }
     }
     limit.addDeclaration(");\n");
-    addProcedure(limit);
-    mainProcedure.addFrontStatement("    call "+limitName+"();\n");
-    mainProcedure.addSucc(limitName);
-    addPred(limitName, mainProcedure.getName());
+    // addProcedure(limit);
+    // mainProcedure.addFrontStatement("    call "+limitName+"();\n");
+    // mainProcedure.addSucc(limitName);
+    // addPred(limitName, mainProcedure.getName());
     //TODO: add children
 }
