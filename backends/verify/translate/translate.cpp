@@ -430,7 +430,8 @@ void Translator::writeToFile(){
     }
 
     addProcedure(mainProcedure);
-    addProcedure(havocProcedure);
+    if(options.whileLoop)
+        addProcedure(havocProcedure);
     std::queue<BoogieProcedure*> queue;
     // queue.push(&mainProcedure);
     for (std::map<cstring, BoogieProcedure>::iterator iter=procedures.begin();
@@ -682,15 +683,32 @@ cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement
     return "";
 }
 
+void Translator::addAssertionStatements(){
+    for(cstring stmt:assertionStatements){
+        if(currentProcedure != nullptr)
+            currentProcedure->addStatement(stmt);
+    }
+    assertionStatements.clear();
+}
+
+void Translator::storeAssertionStatement(cstring stmt){
+    assertionStatements.insert(stmt);
+}
+
 cstring Translator::translate(const IR::IfStatement *ifStatement){
     cstring res = "";
     cstring condition = "";
     condition += getIndent()+"if(";
+    if(options.addValidityAssertion) isIfStatement = true;
     condition += translate(ifStatement->condition);
     condition += "){\n";
     currentProcedure->addStatement(condition);
     res += condition;
     incIndent();
+    
+    if(options.addValidityAssertion) isIfStatement = false;
+    if(options.addValidityAssertion) addAssertionStatements();
+    
     res += translate(ifStatement->ifTrue);
     decIndent();
     currentProcedure->addStatement(getIndent()+"}\n");
@@ -748,9 +766,11 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         return "";
     }
     else if(expr.find(".read") != nullptr){
-        currentProcedure->addStatement(getIndent()+"// read\n");
         cstring expr2 = translate(methodCallStatement->methodCall);
-        currentProcedure->addStatement(getIndent()+expr2+";\n");
+        if(expr2 != ""){
+            currentProcedure->addStatement(getIndent()+"// read\n");
+            currentProcedure->addStatement(getIndent()+expr2+";\n");
+        }
         return "";
     }
     else if(expr.find("random") != nullptr){
@@ -996,7 +1016,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
             }
             // get the corresponding table
             const IR::P4Table* p4Table = tables[tableName];
-            currentProcedure->addStatement(getIndent()+tableName+".apply();\n");
+            currentProcedure->addStatement(getIndent()+"call "+tableName+".apply();\n");
             bool firstAction = true;
 
             bool fallThrough = false;
@@ -1020,7 +1040,7 @@ cstring Translator::translate(const IR::SwitchStatement *switchStatement){
                     
                     // get the corresponding action
                     cstring actionName = translate(switchCase->label);
-                    currentProcedure->addStatement(tableName+".action_run == "+actionName);
+                    currentProcedure->addStatement(tableName+".action_run == "+tableName+".action."+actionName);
                     if(switchCase->statement != nullptr){
                         fallThrough = false;
                         currentProcedure->addStatement("){\n");
@@ -1109,6 +1129,12 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         if(arg.find(".next")) return "";
         res = arg+".valid := true;\n";
         currentProcedure->addModifiedGlobalVariables(arg+".valid");
+        if(options.addValidityAssertion){
+            cstring stmt = "assert("+arg+".valid);";
+            if(currentProcedure->lastStatement().find(stmt)!= nullptr){
+                currentProcedure->removeLastStatement();
+            }
+        } 
         return res;
     }
 
@@ -1122,6 +1148,8 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             idx = ((std::string)method.c_str()).find(".read");
             reg = ((std::string)method.c_str()).substr(0, idx);
         }
+
+        if((*methodCallExpression->arguments).size() == 1) return "";
 
         cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
 
@@ -1184,18 +1212,12 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
         int i = idx;
-        if(options.addValidityAssertion){
-            cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
-            while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
-                currentProcedure->removeLastStatement();
-            }
-        }
-        if(options.addValidityAssertion){
-            cstring assertStmt = "assert(false);";
-            while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
-                currentProcedure->removeLastStatement();
-            }
-        }
+        // if(options.addValidityAssertion){
+        //     cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
+        //     while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
+        //         currentProcedure->removeLastStatement();
+        //     }
+        // }
         return s.substr(0, idx-1)+".valid";
         // return "isValid["+s.substr(0, idx-1)+"]";
         // std::cout << s.substr(0, idx-1) << std::endl;
@@ -1297,28 +1319,24 @@ cstring Translator::translate(const IR::Member *member){
 
     if(auto typeHeader = member->type->to<IR::Type_Header>()){
         cstring hdr = translate(member->expr)+"."+member->member.toString();
-        cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
+        // cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
+        cstring stmt = getIndent()+"assert("+hdr+".valid);\n";
         if(options.addValidityAssertion){
-            if(currentProcedure->lastStatement() == "" || 
-                (currentProcedure->lastStatement() != stmt 
-                    && stmt.find(currentProcedure->lastStatement()) == nullptr)){
-                currentProcedure->addStatement(stmt);
-                // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
-            }
-            else{
-                // std::cout << "fail to add:" << std::endl;
-                // std::cout << stmt << std::endl;
-                // std::cout << "last statement:" << std::endl;
-                // std::cout << currentProcedure->lastStatement() << std::endl;
-            }
-        }
-        if(options.addValidityAssertion){
-            cstring stmt = getIndent()+"assert(false);\n";
-            if(options.addValidityAssertion && currentProcedure->lastStatement() == "" || 
-                (currentProcedure->lastStatement() != stmt 
-                    && stmt.find(currentProcedure->lastStatement()) == nullptr)){
-                currentProcedure->addStatement(stmt);
-                // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
+            if(hdr.find(".next") == nullptr && hdr.find(".last") == nullptr){
+                if(currentProcedure->lastStatement() == "" || 
+                    (currentProcedure->lastStatement() != stmt 
+                        && stmt.find(currentProcedure->lastStatement()) == nullptr)){
+                    if(isIfStatement) storeAssertionStatement(stmt);
+                    else currentProcedure->addStatement(stmt);
+                    // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
+                }
+                else{
+                    // currentProcedure->addStatement(stmt);
+                    // std::cout << "fail to add:" << std::endl;
+                    // std::cout << stmt << std::endl;
+                    // std::cout << "last statement:" << std::endl;
+                    // std::cout << currentProcedure->lastStatement() << std::endl;
+                }
             }
         }
         return hdr;
@@ -1612,6 +1630,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 addPred(nextState, currentProcedure->getName());
             }
             else{
+                if(options.addValidityAssertion) isIfStatement = true;
                 cstring condition = "";
                 cstring nextState = translate(selectCase->state);
                 int sz = selectExpression->select->components.size();
@@ -1751,6 +1770,8 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 else 
                     currentProcedure->addStatement(getIndent() + "else if(" + condition + "){\n");
                 incIndent();
+                if(options.addValidityAssertion) isIfStatement = false;
+                if(options.addValidityAssertion) addAssertionStatements();
                 currentProcedure->addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
                 decIndent();
                 cnt++;
@@ -1919,7 +1940,8 @@ cstring Translator::translate(const IR::Mask *mask){
 cstring Translator::translate(const IR::ArrayIndex *arrayIndex){
     cstring res = "";
     res += translate(arrayIndex->left);
-    res += "["+translate(arrayIndex->right)+"]";
+    res += "."+translate(arrayIndex->right);
+    // res += "["+translate(arrayIndex->right)+"]";
     return res;
 }
 
@@ -2559,13 +2581,18 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
     // currentProcedure->declarationVariables[translate(declVar->name)] = typeBits->size;
             // }
     // else if (auto typeBits = opBinary->left->type->to<IR::Type_Bits>()){
-    else if (opBinary->left->type->to<IR::Type_Bits>() || 
+    else if (opBinary->left->type->to<IR::Type_Bits>() ||
+        opBinary->right->type->to<IR::Type_Bits>() || 
         currentProcedure->declarationVariables.find(translate(opBinary->left)) != currentProcedure->declarationVariables.end()){
         int size;
         cstring typeName;
         if(auto typeBits = opBinary->left->type->to<IR::Type_Bits>()){
             size = typeBits->size;
             typeName = translate(opBinary->left->type);
+        }
+        else if(auto typeBits = opBinary->right->type->to<IR::Type_Bits>()){
+            size = typeBits->size;
+            typeName = translate(opBinary->right->type);
         }
         else{
             size = currentProcedure->declarationVariables[translate(opBinary->left)];
@@ -2832,8 +2859,16 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             return "(" + translate(opBinary->left) + " != " + translate(opBinary->right) + ")";
         }
     }
-    else
+    else{
+        // std::cout << opBinary->node_type_name() << std::endl;
+        // std::cout << opBinary << std::endl;
+        // std::cout << opBinary->left->type << std::endl;
+        // std::cout << opBinary->left->type->node_type_name() << std::endl;
+        // std::cout << opBinary->right->type << std::endl;
+        // std::cout << opBinary->right->type->node_type_name() << std::endl;
+        // std::cout << std::endl;
         return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
+    }
     return "";
 }
 
@@ -3376,7 +3411,7 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
             }
         }
         else{
-            translate(field, "_old_"+arg);
+            // translate(field, "_old_"+arg);
         }
 
         if(options.bitBlasting){
@@ -3416,9 +3451,9 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
                 }
             }
             else{
-                havocProcedure.addStatement("    "+oldFieldName+" := "+
-                   fieldName +";\n");
-                havocProcedure.addModifiedGlobalVariables(oldFieldName);
+                // havocProcedure.addStatement("    "+oldFieldName+" := "+
+                //    fieldName +";\n");
+                // havocProcedure.addModifiedGlobalVariables(oldFieldName);
             }
         }
     }

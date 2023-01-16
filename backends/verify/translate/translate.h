@@ -45,7 +45,9 @@ private:
 	// options
 	P4VerifyOptions& options;
 	// assertion
+	bool isIfStatement = false;
 	bool addAssertions = false;
+	std::set<cstring> assertionStatements;
 	int switchStatementCount = 0;
 	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
 
@@ -96,6 +98,10 @@ public:
 	void updateVariableSize(cstring name, int size); // 0 means bool
 	int getSize(cstring name);
 	void addUAFunctions();
+
+	// Assertions
+	void addAssertionStatements();
+	void storeAssertionStatement(cstring stmt);
 
 	// Bit Blasting
 	cstring bitBlastingTempDecl(const cstring &tmpPrefix, int size);

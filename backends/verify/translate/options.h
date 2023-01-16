@@ -127,6 +127,16 @@ class P4VerifyOptions : public CompilerOptions {
                            return true; },
                        "use Ultimate Automizer as the backend");
 
+        registerOption("--ua3", nullptr,
+                       [this](const char*) {
+                           ultimateAutomizer = true;
+                           bv2int = true;
+                           gotoOrIf = false;
+                           whileLoop = false;
+                           bitBlasting = false;
+                           return true; },
+                       "use Ultimate Automizer as the backend");
+
         /*
         */
         registerOption("--p4ltl", "file",
