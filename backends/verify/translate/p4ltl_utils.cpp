@@ -47,6 +47,7 @@ std::map<cstring, std::set<cstring>> P4LTLTranslator::getOldArrays(P4LTL::AstNod
 				auto nodes = arrayAccess->getOutgoingNodes();
 				cstring name = translateP4LTL(nodes[0]);
 				cstring index = translateP4LTL(nodes[1]);
+				if(isFreeVariable(index)) index = "_p4ltl_free_"+index;
 				res[name].insert(index);
 			}
 		}
@@ -95,7 +96,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
 		return translateP4LTL(arrayAccess);
 	}
 	else if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
-		return "_old_"+oldExpression->getValue()->toString();
+		return "_old_"+translateP4LTL(oldExpression->getValue());
 	}
 	else {
 		return node->toString();
@@ -126,6 +127,7 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 
 		cstring left = translateP4LTL(extendedCompOp->getLeft());
 		cstring right = translateP4LTL(extendedCompOp->getRight());
+
 		int sizeLeft = getSize(left), sizeRight = getSize(right);
 		if(sizeLeft != -1 || sizeRight != -1){
 			if(sizeLeft == -1) sizeLeft = sizeRight;
@@ -309,8 +311,11 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::ArrayAccessExprssion* node){
 	cstring res = "";
 	auto nodes = node->getOutgoingNodes();
 	res = translateP4LTL(nodes[0]);
-    for(int i = 1; i < nodes.size(); ++i)
-        res += "[" + translateP4LTL(nodes[i]) + "]";
+    for(int i = 1; i < nodes.size(); ++i){
+    	cstring cont = translateP4LTL(nodes[i]);
+    	if(isFreeVariable(cont)) cont = "_p4ltl_free_"+cont;
+        res += "[" + cont + "]";
+    }
 	return res;
 }
 
