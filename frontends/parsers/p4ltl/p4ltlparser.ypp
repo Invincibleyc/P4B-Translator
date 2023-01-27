@@ -150,7 +150,9 @@ term
 	: identifier LBRACKET term RBRACKET
 	{// currently we don't support multiaccessor
         $$ = new ArrayAccessExprssion($1,$3); }
-	| OLD LPAR NAME RPAR
+    //| OLD LPAR NAME RPAR
+	//{$$ = new OldExpression($3); }
+	| OLD LPAR term RPAR
 	{$$ = new OldExpression($3); }
 	| KEY LPAR NAME COMMA NAME RPAR
 	{$$ = new Key($3, $5); }

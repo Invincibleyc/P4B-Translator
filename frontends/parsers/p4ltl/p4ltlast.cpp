@@ -403,13 +403,19 @@ std::string Name::toString() const
 }
 
 //Class Old
-OldExpression::OldExpression(const std::string& name)
-:Name(name)
-{}
+OldExpression::OldExpression(AstNode* expr)
+{
+    this->value = expr;
+}
+
+AstNode* OldExpression::getValue() const
+{
+    return this->value;
+}
 
 std::string OldExpression::toString() const
 {
-    return "old(" + getValue() + ")";
+    return "old(" + this->getValue()->toString() + ")";
 }
 
 //Class BinOp Term

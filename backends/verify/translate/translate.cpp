@@ -385,6 +385,7 @@ void Translator::writeToFile(){
             }
         }
         out << "\n";
+
         for(auto item:ltlTranslator->getFreeVariables()){
             if(isGlobalVariable(item.first)){
                 std::cout << "ERROR: "+item.first+" is a global variable. Please change the name.\n";
@@ -429,6 +430,31 @@ void Translator::writeToFile(){
         
         for(cstring declaration:ltlTranslator->getDeclarations()){
             addDeclaration(declaration);
+        }
+
+        for(auto item:p4ltlSpec){
+            for(auto spec:item.second){
+                std::map<cstring, std::set<cstring>> oldArrays = ltlTranslator->getOldArrays(spec);
+                for(auto oldArray:oldArrays){
+                    cstring arrayName = oldArray.first;
+                    cstring oldArrayName = "_old_"+oldArray.first;
+                    addDeclaration("var "+oldArrayName+": [int]int;\n");
+                    addGlobalVariables(oldArrayName);
+                    for(cstring arrayIndex:oldArray.second){
+                        std::cout << oldArrayName << " " << arrayIndex << std::endl;
+                        havocProcedure.addModifiedGlobalVariables(oldArrayName);
+                        havocProcedure.addStatement("    "+oldArrayName+"["+arrayIndex+
+                            "] := "+ arrayName+"["+arrayIndex+"];\n");
+                    }
+                }
+                // std::cout << oldArrays.size() << std::endl;
+        //         if(oldExprs.find(fieldName) != oldExprs.end()){
+        //             havocProcedure.addStatement("    "+oldFieldName+" := "+
+        //                fieldName +";\n");
+        //             havocProcedure.addModifiedGlobalVariables(oldFieldName);
+        //             break;
+        //         }
+            }
         }
     }
 

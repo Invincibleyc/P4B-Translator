@@ -223,10 +223,14 @@ public:
     std::string toString() const;
 };
 
-class OldExpression: public Name
+class OldExpression: public AstNode
 {
+private:
+    AstNode* value;
 public:
-    OldExpression(const std::string& name);
+    // OldExpression(const std::string& name);
+    OldExpression(AstNode* value);
+    AstNode* getValue() const;
     std::string toString() const;
 };
 

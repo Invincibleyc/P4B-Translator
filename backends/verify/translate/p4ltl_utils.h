@@ -79,7 +79,9 @@ public:
 
 	void getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root);
 	std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
+
 	std::set<cstring> getOldExprs(P4LTL::AstNode* root);
+	std::map<cstring, std::set<cstring>> getOldArrays(P4LTL::AstNode* root);
 
 	bool isActionApplied(P4LTL::AstNode* root, cstring action);
 

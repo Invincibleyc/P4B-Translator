@@ -33,7 +33,22 @@ std::set<cstring> P4LTLTranslator::getOldExprs(P4LTL::AstNode* root){
 	std::set<cstring> res;
 	for(auto node:getAllNodes(root)){
 		if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
-			res.insert(oldExpression->getValue());
+			res.insert(oldExpression->getValue()->toString());
+		}
+	}
+	return res;
+}
+
+std::map<cstring, std::set<cstring>> P4LTLTranslator::getOldArrays(P4LTL::AstNode* root){
+	std::map<cstring, std::set<cstring>> res;
+	for(auto node:getAllNodes(root)){
+		if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
+			if(auto arrayAccess = dynamic_cast<P4LTL::ArrayAccessExprssion*>(oldExpression->getValue())){
+				auto nodes = arrayAccess->getOutgoingNodes();
+				cstring name = translateP4LTL(nodes[0]);
+				cstring index = translateP4LTL(nodes[1]);
+				res[name].insert(index);
+			}
 		}
 	}
 	return res;
@@ -78,6 +93,9 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
 	}
 	else if(auto arrayAccess = dynamic_cast<P4LTL::ArrayAccessExprssion*>(node)){
 		return translateP4LTL(arrayAccess);
+	}
+	else if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
+		return "_old_"+oldExpression->getValue()->toString();
 	}
 	else {
 		return node->toString();
@@ -271,10 +289,10 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BooleanLiteral* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::Name* node){
-	if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
-		return "_old_"+oldExpression->getValue();
-	}
-	else{
+	// if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
+	// 	return "_old_"+oldExpression->getOutgoingNodes()[0]->toString();
+	// }
+	{
 		cstring res = node->toString();
 		if(isFreeVariable(res)){
 			return freeVars[res];
