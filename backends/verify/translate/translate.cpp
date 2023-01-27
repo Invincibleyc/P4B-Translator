@@ -391,6 +391,14 @@ void Translator::writeToFile(){
                 std::abort();
             }
             addGlobalVariables(item.second);
+            // Add bv
+            if(ltlTranslator->getSize(item.second) != 1){
+                mainProcedure.addFrontStatement("    assume(0 <= "+item.second+" && "+
+                        item.second + " <= power_2_" +toString(ltlTranslator->getSize(item.second))
+                        +"() );\n");
+                // std::couts << item.second << " " << ltlTranslator->getSize(item.second) << std::endl;
+            }
+
             // havocProcedure.addStatement("    havoc "+item.second+";\n");
             // havocProcedure.addModifiedGlobalVariables(item.second);
         }

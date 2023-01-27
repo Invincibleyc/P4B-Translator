@@ -351,6 +351,7 @@ void P4LTLTranslator::addFreeVariable(cstring variable){
 		int length = getBvLength(type);
 		sizes["_p4ltl_free_"+name] = length;
 		addDeclaration("\nvar "+freeVars[name]+":int;\n");
+		// TODO: add assumptions for bv
 	}
 	else{
 		addDeclaration("\nvar "+freeVars[name]+":"+type+";\n");
