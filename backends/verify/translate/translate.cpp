@@ -3339,9 +3339,22 @@ void Translator::translate(const IR::StructField *field, cstring arg){
             if(isGlobalVariable(fieldName)) return;
             addDeclaration("var "+fieldName+":"+name+";\n");
             addGlobalVariables(fieldName);
+
+            if(fieldName.startsWith("standard_metadata.")){
+                std::set<cstring> havocSet = {"ingress_port", "instance_type", "packet_length", 
+                                              "enq_timestamp", "deq_timedelta", "deq_qdepth",
+                                              "ingress_global_timestamp", "egress_global_timestamp"
+                                             };
+                if(havocSet.find(field->name) != havocSet.end()){
+                    havocProcedure.addStatement("    havoc "+fieldName+";\n");
+                }
+                else{
+                    havocProcedure.addStatement("    "+fieldName+" := 0;\n");
+                }
+                havocProcedure.addModifiedGlobalVariables(fieldName);
+            }
         }
 
-        // std::cout << "finding " << fieldName << std::endl;
         // std::cout << (headers.find(fieldName)!=headers.end()) << std::endl;
         // std::cout << (structs.find(fieldName)!=structs.end()) << std::endl;
     }
@@ -3361,7 +3374,16 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         addGlobalVariables(fieldName);
         updateVariableSize(fieldName, typeBits->size);
         if(fieldName.startsWith("meta.") || fieldName.startsWith("standard_metadata.")){
-            havocProcedure.addStatement("    "+fieldName+" := 0;\n");
+            std::set<cstring> havocSet = {"ingress_port", "instance_type", "packet_length", 
+                                          "enq_timestamp", "deq_timedelta", "deq_qdepth",
+                                          "ingress_global_timestamp", "egress_global_timestamp"
+                                         };
+            if(havocSet.find(field->name) != havocSet.end()){
+                havocProcedure.addStatement("    havoc "+fieldName+";\n");
+            }
+            else{
+                havocProcedure.addStatement("    "+fieldName+" := 0;\n");
+            }
             havocProcedure.addModifiedGlobalVariables(fieldName);
         }
     }
