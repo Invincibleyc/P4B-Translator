@@ -395,7 +395,7 @@ void Translator::writeToFile(){
             // Add bv
             if(ltlTranslator->getSize(item.second) != 1){
                 mainProcedure.addFrontStatement("    assume(0 <= "+item.second+" && "+
-                        item.second + " <= power_2_" +toString(ltlTranslator->getSize(item.second))
+                        item.second + " < power_2_" +toString(ltlTranslator->getSize(item.second))
                         +"() );\n");
                 // std::couts << item.second << " " << ltlTranslator->getSize(item.second) << std::endl;
             }
@@ -441,7 +441,6 @@ void Translator::writeToFile(){
                     addDeclaration("var "+oldArrayName+": [int]int;\n");
                     addGlobalVariables(oldArrayName);
                     for(cstring arrayIndex:oldArray.second){
-                        std::cout << oldArrayName << " " << arrayIndex << std::endl;
                         havocProcedure.addModifiedGlobalVariables(oldArrayName);
                         havocProcedure.addStatement("    "+oldArrayName+"["+arrayIndex+
                             "] := "+ arrayName+"["+arrayIndex+"];\n");
@@ -3347,6 +3346,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
                                              };
                 if(havocSet.find(field->name) != havocSet.end()){
                     havocProcedure.addStatement("    havoc "+fieldName+";\n");
+                    if(typeDefs.find(name) != typeDefs.end()){
+                        havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
+                            fieldName + " < power_2_" +toString(typeDefs[name]) +"() );\n");
+                    }
                 }
                 else{
                     havocProcedure.addStatement("    "+fieldName+" := 0;\n");
@@ -3374,12 +3377,23 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         addGlobalVariables(fieldName);
         updateVariableSize(fieldName, typeBits->size);
         if(fieldName.startsWith("meta.") || fieldName.startsWith("standard_metadata.")){
+            // std::set<cstring> incSet = {};
+            // std::set<cstring> nonnegSet = {};
             std::set<cstring> havocSet = {"ingress_port", "instance_type", "packet_length", 
                                           "enq_timestamp", "deq_timedelta", "deq_qdepth",
                                           "ingress_global_timestamp", "egress_global_timestamp"
                                          };
+            // if(incSet.find(field->name) != incSet.end()){
+
+            // }
+            // else if(nonnegSet.find(filed->name) != nonnegSet.end()){
+            //     havocProcedure.addStatement("    havoc "+fieldName+";\n");
+            // }
+            // else if(havocSet.find(field->name) != havocSet.end()){
             if(havocSet.find(field->name) != havocSet.end()){
                 havocProcedure.addStatement("    havoc "+fieldName+";\n");
+                havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
+                        fieldName + " < power_2_" +toString(typeBits->size) +"() );\n");
             }
             else{
                 havocProcedure.addStatement("    "+fieldName+" := 0;\n");
@@ -3488,7 +3502,7 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
                 havocProcedure.addStatement("    havoc "+fieldName+";\n");
                 if(auto typeBits = field->type->to<IR::Type_Bits>()){
                     havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
-                        fieldName + " <= power_2_" +toString(typeBits->size) +"() );\n");
+                        fieldName + " < power_2_" +toString(typeBits->size) +"() );\n");
                 }
                 havocProcedure.addModifiedGlobalVariables(fieldName);
             }
@@ -3800,7 +3814,7 @@ void Translator::translate(const IR::P4Table *p4Table){
                         stmt += ";\n";
                         table.addStatement(stmt);
                         table.addModifiedGlobalVariables(expr);
-                        std::cout << expr << std::endl;
+                        // std::cout << expr << std::endl;
                     }
                 }
             }
