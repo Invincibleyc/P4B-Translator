@@ -442,3 +442,68 @@ cstring P4LTLTranslator::getCacheVariable(cstring expr){
 	}
 	return nullptr;
 }
+
+CPIRule* P4LTLTranslator::analyzeRule(P4LTL::AstNode* root){
+	CPIRule* rule;
+	cstring table = "";
+	cstring action = "";
+	cstring key = "";
+	cstring value = "";
+	std::vector<cstring> params;
+	if(auto temporal = dynamic_cast<P4LTL::UnaryTemporalOperator*>(root)){
+		if(auto ap = dynamic_cast<P4LTL::P4LTLAtomicProposition*>(temporal->getChild())){
+			if(auto binOp = dynamic_cast<P4LTL::BinaryPredicateOperator*>(ap->getProposition())){
+				if(binOp->getOp() == " ==> "){
+					if(auto match = dynamic_cast<P4LTL::BinaryPredicateOperator*>(binOp->getLeft())){
+						if(match->getOp() == " && "){
+							if(auto tableApply = dynamic_cast<P4LTL::Apply*>(match->getLeft())){
+								table = tableApply->getTable();
+								// std::cout << "##Table: " << table << std::endl;;
+							}
+							if(auto keyValue = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(match->getRight())){
+								if(auto keyExpr = dynamic_cast<P4LTL::Key*>(keyValue->getLeft())){
+									key = keyExpr->getKey();
+								}
+								value = keyValue->getOp() + translateP4LTL(keyValue->getRight());
+								// std::cout << key << value << std::endl;
+							}
+							// TODO: multiple rules
+						}
+					}
+				}
+				if(auto actionApply = dynamic_cast<P4LTL::Apply*>(binOp->getRight())){
+					action = actionApply->getAction();
+					// std::cout << "##Action: " << action << std::endl;
+				}
+				else if(auto actionParam = dynamic_cast<P4LTL::BinaryPredicateOperator*>(binOp->getRight())){
+					if(auto actionApply2 = dynamic_cast<P4LTL::Apply*>(actionParam->getLeft())){
+						action = actionApply2->getAction();
+					}
+					P4LTL::AstNode* node = actionParam->getRight();
+					while(dynamic_cast<P4LTL::BinaryPredicateOperator*>(node) != nullptr){
+						auto item =dynamic_cast<P4LTL::BinaryPredicateOperator*>(node);
+						if(auto left = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(item->getLeft())){
+							if(left->getOp() == " == "){
+								params.push_back(left->getRight()->toString());
+							}
+						}
+						node = item->getRight();
+					}
+					if(auto nodeLeft = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(node)){
+						if(nodeLeft->getOp() == " == "){
+							params.push_back(nodeLeft->getRight()->toString());
+						}
+					}
+				}
+			}
+		}
+	}
+	if(table != "" && action != "" && key != "" && value != ""){
+		rule = new CPIRule();
+		rule->setTable(table);
+		rule->setAction(action);
+		rule->addKey(key, value);
+		for(cstring param:params) rule->addParam(param);
+	}
+	return rule;
+}

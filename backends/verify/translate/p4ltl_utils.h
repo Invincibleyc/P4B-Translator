@@ -42,12 +42,56 @@
 */
 
 const std::vector<cstring> P4LTL_KEYS = {"//#LTLVariables:", "//#LTLProperty:", "//#LTLFairness:", "//#CPI:"};
+const cstring P4LTL_KEYS_VAR = "//#LTLVariables:";
+const cstring P4LTL_KEYS_SPEC = "//#LTLProperty:";
+const cstring P4LTL_KEYS_FAIR = "//#LTLFairness:";
+const cstring P4LTL_KEYS_CPI = "//#CPI:";
 
 // bool isAPNode(P4LTL::AstNode* node);
 // std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
 // std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root);
 
 class Translator;
+
+class CPIRule{
+private:
+	cstring table;
+	std::map<cstring, cstring> keys;
+	cstring action;
+public:
+	std::vector<cstring> params;
+	CPIRule(){
+		table = "";
+		action = "";
+	}
+	void setTable(cstring _table){
+		table = _table;
+	}
+	void addKey(cstring key, cstring value){
+		keys[key] = value;
+	}
+	void addParam(cstring param){
+		params.push_back(param);
+	}
+	void setAction(cstring _action){
+		action = _action;
+	}
+	cstring getTable(){ return table; }
+	cstring getAction(){ return action; }
+	std::map<cstring, cstring> getKeys(){ return keys; }
+	std::vector<cstring> getParams(){ return params; }
+	void show(){
+		std::cout << "table: " << table << std::endl;
+		std::cout << "action: " << action << std::endl;
+		for(auto item : keys){
+			std::cout << "match: " << item.first << item.second << std::endl;
+		}
+		for(auto item : params){
+			std::cout << "param: " << item << std::endl;
+		}
+		std::cout << std::endl;
+	}
+};
 
 class P4LTLTranslator{
 	Translator* p4Translator;
@@ -107,6 +151,6 @@ public:
 	bool alreadyDeclared(cstring expr);
 	cstring getCacheVariable(cstring expr);
 
+	CPIRule* analyzeRule(P4LTL::AstNode* root);
 };
-
 #endif

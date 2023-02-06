@@ -15,6 +15,7 @@
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
 
 class P4LTLTranslator;
+class CPIRule;
 
 class Translator{
 private:

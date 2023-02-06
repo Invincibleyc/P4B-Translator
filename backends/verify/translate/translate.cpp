@@ -376,6 +376,7 @@ void Translator::addUAFunctions(){
 void Translator::writeToFile(){
     if(options.p4ltlSpec){
         for(cstring str:P4LTL_KEYS){
+            if(options.CpiIfElse && str == P4LTL_KEYS_CPI) continue;
             if(p4ltlSpec.find(str) != p4ltlSpec.end()){
                 for(auto spec:p4ltlSpec[str]){
                     cstring cont = ltlTranslator->translateP4LTL(spec);
@@ -3747,7 +3748,7 @@ void Translator::translate(const IR::P4Action *p4Action){
     }
     action.addDeclaration(")\n");
     incIndent();
-    {
+    if(!options.CpiIfElse){
         bool existInSpec = false;
         for(cstring str:P4LTL_KEYS){
             if(p4ltlSpec.find(str) != p4ltlSpec.end()){
@@ -3820,7 +3821,7 @@ void Translator::translate(const IR::P4Table *p4Table){
             }
         }
     }
-    else{
+    else if(!options.CpiIfElse){
         for(auto property:p4Table->properties->properties){
             if (auto key = property->value->to<IR::Key>()) {
                 for(auto keyElement:key->keyElements){
@@ -3861,7 +3862,47 @@ void Translator::translate(const IR::P4Table *p4Table){
         }
     }
 
-    {
+    bool ruleExist = false;
+    if(options.CpiIfElse){
+        bool firstRule = true;
+        if(p4ltlSpec.find(P4LTL_KEYS_CPI) != p4ltlSpec.end()){
+            for(auto spec:p4ltlSpec[P4LTL_KEYS_CPI]){
+                CPIRule* rule = ltlTranslator->analyzeRule(spec);
+                if(rule != nullptr){
+                    if(rule->getTable() == name){
+                        ruleExist = true;
+                        rule->show();
+                        cstring condition = getIndent()+"if(";
+                        if(firstRule) firstRule = false;
+                        else condition = "else "+condition;
+                        bool first = true;
+                        for(auto item:rule->getKeys()){
+                            if(first) first = false;
+                            else condition += " && ";
+                            condition += item.first+item.second;
+                        }
+                        condition += "){\n";
+                        table.addStatement(condition);
+                        incIndent();
+                        cstring params = "";
+                        bool firstParam = true;
+                        for(auto item:rule->getParams()){
+                            if(firstParam) firstParam = false;
+                            else params += ", ";
+                            params += item;
+                        }
+                        table.addStatement(getIndent()+"call "+rule->getAction()+"("+params+");\n");
+                        table.addSucc(rule->getAction());
+                        addPred(rule->getAction(), tableName);
+                        decIndent();
+                        table.addStatement(getIndent()+"}\n");
+                    }
+                }
+            }
+        } 
+    }
+
+    if(!ruleExist) {
         bool existInSpec = false;
         cstring tableApplySpec = "Apply("+name;
         for(cstring str:P4LTL_KEYS){
@@ -3885,170 +3926,169 @@ void Translator::translate(const IR::P4Table *p4Table){
             havocProcedure.addStatement("    "+tableIsApplied+" := false;\n");
             havocProcedure.addModifiedGlobalVariables(tableIsApplied);
         }
-    }
 
+        // std::cout << tableName << std::endl;
+        cstring gotoStmt = getIndent()+"goto ";
 
-    // std::cout << tableName << std::endl;
-    cstring gotoStmt = getIndent()+"goto ";
-
-    for(auto property:p4Table->properties->properties){
-        if (auto actionList = property->value->to<IR::ActionList>()) {
-            // add local variables
-            for(auto actionElement:actionList->actionList){
-                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                    cstring actionName = translate(actionCallExpr->method);
-                    const IR::P4Action* action = actions[actionName];
-                    for(auto parameter:action->parameters->parameters){
-                        if(options.ultimateAutomizer && options.bitBlasting &&
-                            parameter->type->to<IR::Type_Bits>()){
-                            auto typeBits = parameter->type->to<IR::Type_Bits>();
-                            cstring parameterName = actionName+"."+translate(parameter->name);
-                            for(int i = 0; i < typeBits->size; i++){
-                                table.addFrontStatement("    var "+connect(parameterName, i)+":bool;\n");
-                            }
-                        }
-                        else{
-                            cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
-                            // table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
-                            addDeclaration("var "+name+"."+actionName+"."+translate(parameter)+";\n");
-                            addGlobalVariables(parameterName);
-                            havocProcedure.addModifiedGlobalVariables(parameterName);
-                            havocProcedure.addStatement("    havoc "+parameterName+";\n");
-                        }
-                    }
-                }
-            }
-
-            // no table rules
-            if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
-                int cnt = actionList->actionList.size();
-
-                // goto statement
-                if(options.gotoOrIf){
-                    bool firstAction = true;
-                    for(auto actionElement:actionList->actionList){
-                        if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                            // NoAction should not be considered
-                            cnt--;
-                            if(cnt == 0)
-                                break;
-
-                            cstring actionName = translate(actionCallExpr->method);
-                            if(!firstAction) gotoStmt += ", ";
-                            else firstAction = false;
-                            gotoStmt += "action_"; gotoStmt += actionName;
-                        }
-                    }
-                    gotoStmt += ";\n";
-                    table.addStatement(gotoStmt);
-                }
-
-                cnt = actionList->actionList.size();
-                bool firstAction = true;
-                // std::cout << tableName << " " << cnt << std::endl;
+        for(auto property:p4Table->properties->properties){
+            if (auto actionList = property->value->to<IR::ActionList>()) {
+                // add local variables
                 for(auto actionElement:actionList->actionList){
-                    // if(actionList->actionList.size()!=1){
-                    //     table.addStatement(getIndent()+"assume(");
-                    // }
-                    
-                    // NoAction should not be considered
-                    cnt--;
-                    // if(cnt == 0)
-                    //     break;
-                    // std::cout << "action: " << actionElement->expression->toString() << std::endl;
                     if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                         cstring actionName = translate(actionCallExpr->method);
-                        // std::cout << "action: " << actionName << std::endl;
-                        std::string label("\n"+getIndent());
-                        label += "action_"; label += actionName; label += ":\n";
-                        if(options.gotoOrIf){
-                            table.addStatement(label);
-                        }
-
-                        if(actionList->actionList.size()!=1){
-                            // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
-                                // +actionName+");\n");
-                        }
-
-                        if(options.gotoOrIf){
-                            table.addStatement(getIndent()+"assume "+name+".action_run == "+
-                                name+".action."+actionName+";\n");
-                            table.addModifiedGlobalVariables(name+".action_run");
-                        }
-                        else{
-                            if(firstAction){
-                                table.addStatement(getIndent()+"if("+name+".action_run == "+
-                                    name+".action."+actionName+"){\n");
-                                firstAction = false;
-                            }
-                            else{
-                                table.addStatement(getIndent()+"else if("+name+".action_run == "+
-                                    name+".action."+actionName+"){\n");
-                            }
-                            incIndent();
-                        }
-                        
                         const IR::P4Action* action = actions[actionName];
-                        table.addStatement(getIndent()+"call "+actionName+"(");
-                        table.addSucc(actionName);
-                        addPred(actionName, tableName);
-                        int cnt2 = action->parameters->parameters.size();
                         for(auto parameter:action->parameters->parameters){
-                            cnt2--;
-                            if(options.ultimateAutomizer && options.bitBlasting && 
+                            if(options.ultimateAutomizer && options.bitBlasting &&
                                 parameter->type->to<IR::Type_Bits>()){
                                 auto typeBits = parameter->type->to<IR::Type_Bits>();
-                                cstring stmt = "";
+                                cstring parameterName = actionName+"."+translate(parameter->name);
                                 for(int i = 0; i < typeBits->size; i++){
-                                    stmt += connect(actionName+"."+translate(parameter->name), i);
-                                    if(i < typeBits->size-1) stmt += ", ";
+                                    table.addFrontStatement("    var "+connect(parameterName, i)+":bool;\n");
                                 }
-                                table.addStatement(stmt);
                             }
                             else{
                                 cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
-                                table.addStatement(parameterName);
+                                // table.addFrontStatement("    var "+actionName+"."+translate(parameter)+";\n");
+                                addDeclaration("var "+name+"."+actionName+"."+translate(parameter)+";\n");
+                                addGlobalVariables(parameterName);
+                                havocProcedure.addModifiedGlobalVariables(parameterName);
+                                havocProcedure.addStatement("    havoc "+parameterName+";\n");
                             }
-                            if(cnt2 != 0)
-                                table.addStatement(", ");
                         }
-                        table.addStatement(");\n");
-                        if(options.gotoOrIf){
-                            table.addStatement(getIndent()+"goto Exit;\n");
-                        }
-                        else{
-                            decIndent();
-                            table.addStatement(getIndent()+"}\n");
-                        }
-                        // decIndent();
                     }
                 }
-                // add action declaration
-                translate(actionList, name+".action");
-            }
-            /* handle table add commands, i.e., table rules
-                1. find the rules of the current table (from BMV2CmdsAnalyzer)
-                2. add condition statements (according to keys and priority)
-                3. assign parameters
-                4. call the corresponding actions
-                5. if no matching rules, consider the default action
-            */
-            else{
-                std::vector<TableAdd*> rules = bMV2CmdsAnalyzer->getTableAddCmds(name);
+
+                // no table rules
+                if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
+                    int cnt = actionList->actionList.size();
+
+                    // goto statement
+                    if(options.gotoOrIf){
+                        bool firstAction = true;
+                        for(auto actionElement:actionList->actionList){
+                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                                // NoAction should not be considered
+                                cnt--;
+                                if(cnt == 0)
+                                    break;
+
+                                cstring actionName = translate(actionCallExpr->method);
+                                if(!firstAction) gotoStmt += ", ";
+                                else firstAction = false;
+                                gotoStmt += "action_"; gotoStmt += actionName;
+                            }
+                        }
+                        gotoStmt += ";\n";
+                        table.addStatement(gotoStmt);
+                    }
+
+                    cnt = actionList->actionList.size();
+                    bool firstAction = true;
+                    // std::cout << tableName << " " << cnt << std::endl;
+                    for(auto actionElement:actionList->actionList){
+                        // if(actionList->actionList.size()!=1){
+                        //     table.addStatement(getIndent()+"assume(");
+                        // }
+                        
+                        // NoAction should not be considered
+                        cnt--;
+                        // if(cnt == 0)
+                        //     break;
+                        // std::cout << "action: " << actionElement->expression->toString() << std::endl;
+                        if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                            cstring actionName = translate(actionCallExpr->method);
+                            // std::cout << "action: " << actionName << std::endl;
+                            std::string label("\n"+getIndent());
+                            label += "action_"; label += actionName; label += ":\n";
+                            if(options.gotoOrIf){
+                                table.addStatement(label);
+                            }
+
+                            if(actionList->actionList.size()!=1){
+                                // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
+                                    // +actionName+");\n");
+                            }
+
+                            if(options.gotoOrIf){
+                                table.addStatement(getIndent()+"assume "+name+".action_run == "+
+                                    name+".action."+actionName+";\n");
+                                table.addModifiedGlobalVariables(name+".action_run");
+                            }
+                            else{
+                                if(firstAction){
+                                    table.addStatement(getIndent()+"if("+name+".action_run == "+
+                                        name+".action."+actionName+"){\n");
+                                    firstAction = false;
+                                }
+                                else{
+                                    table.addStatement(getIndent()+"else if("+name+".action_run == "+
+                                        name+".action."+actionName+"){\n");
+                                }
+                                incIndent();
+                            }
+                            
+                            const IR::P4Action* action = actions[actionName];
+                            table.addStatement(getIndent()+"call "+actionName+"(");
+                            table.addSucc(actionName);
+                            addPred(actionName, tableName);
+                            int cnt2 = action->parameters->parameters.size();
+                            for(auto parameter:action->parameters->parameters){
+                                cnt2--;
+                                if(options.ultimateAutomizer && options.bitBlasting && 
+                                    parameter->type->to<IR::Type_Bits>()){
+                                    auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                    cstring stmt = "";
+                                    for(int i = 0; i < typeBits->size; i++){
+                                        stmt += connect(actionName+"."+translate(parameter->name), i);
+                                        if(i < typeBits->size-1) stmt += ", ";
+                                    }
+                                    table.addStatement(stmt);
+                                }
+                                else{
+                                    cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                    table.addStatement(parameterName);
+                                }
+                                if(cnt2 != 0)
+                                    table.addStatement(", ");
+                            }
+                            table.addStatement(");\n");
+                            if(options.gotoOrIf){
+                                table.addStatement(getIndent()+"goto Exit;\n");
+                            }
+                            else{
+                                decIndent();
+                                table.addStatement(getIndent()+"}\n");
+                            }
+                            // decIndent();
+                        }
+                    }
+                    // add action declaration
+                    translate(actionList, name+".action");
+                }
+                /* handle table add commands, i.e., table rules
+                    1. find the rules of the current table (from BMV2CmdsAnalyzer)
+                    2. add condition statements (according to keys and priority)
+                    3. assign parameters
+                    4. call the corresponding actions
+                    5. if no matching rules, consider the default action
+                */
+                else{
+                    std::vector<TableAdd*> rules = bMV2CmdsAnalyzer->getTableAddCmds(name);
+                }
             }
         }
+
+        if(options.gotoOrIf){
+            // table.addStatement("\n    Exit:\n");
+            // table.addStatement("        call "+tableName+"_table_exit();\n");
+        }
+        addDeclaration("var "+name+".action_run : "+name+".action;\n");
+        addGlobalVariables(name+".action_run");
+        havocProcedure.addStatement("    havoc "+name+".action_run;\n");
+        havocProcedure.addModifiedGlobalVariables(name+".action_run");
+        addDeclaration("var "+name+".hit : bool;\n");
     }
 
-    if(options.gotoOrIf){
-        // table.addStatement("\n    Exit:\n");
-        // table.addStatement("        call "+tableName+"_table_exit();\n");
-    }
-
-    addDeclaration("var "+name+".action_run : "+name+".action;\n");
-    addGlobalVariables(name+".action_run");
-    havocProcedure.addStatement("    havoc "+name+".action_run;\n");
-    havocProcedure.addModifiedGlobalVariables(name+".action_run");
-    addDeclaration("var "+name+".hit : bool;\n");
     decIndent();
     addProcedure(table);
 }

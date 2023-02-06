@@ -30,6 +30,8 @@ class P4VerifyOptions : public CompilerOptions {
     bool ultimateAutomizer = false;
     bool bitBlasting = false;
 
+    bool CpiIfElse = false;
+
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
                        [this](const char*) {
@@ -124,6 +126,7 @@ class P4VerifyOptions : public CompilerOptions {
                            gotoOrIf = false;
                            whileLoop = true;
                            bitBlasting = false;
+                           CpiIfElse = true;
                            return true; },
                        "use Ultimate Automizer as the backend");
 
