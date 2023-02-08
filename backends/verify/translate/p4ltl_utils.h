@@ -41,11 +41,14 @@
 	ArrayAccessExprssion
 */
 
-const std::vector<cstring> P4LTL_KEYS = {"//#LTLVariables:", "//#LTLProperty:", "//#LTLFairness:", "//#CPI:"};
+const std::vector<cstring> P4LTL_KEYS = {"//#LTLVariables:", "//#LTLProperty:", "//#LTLFairness:", 
+										"//#CPI:", "//#CPI_MODEL:", "//#CPI_SPEC:"};
 const cstring P4LTL_KEYS_VAR = "//#LTLVariables:";
 const cstring P4LTL_KEYS_SPEC = "//#LTLProperty:";
 const cstring P4LTL_KEYS_FAIR = "//#LTLFairness:";
 const cstring P4LTL_KEYS_CPI = "//#CPI:";
+const cstring P4LTL_KEYS_CPI_MODEL = "//#CPI_MODEL:";
+const cstring P4LTL_KEYS_CPI_SPEC = "//#CPI_SPEC:";
 
 // bool isAPNode(P4LTL::AstNode* node);
 // std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);

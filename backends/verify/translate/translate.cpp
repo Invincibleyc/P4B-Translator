@@ -376,12 +376,15 @@ void Translator::addUAFunctions(){
 void Translator::writeToFile(){
     if(options.p4ltlSpec){
         for(cstring str:P4LTL_KEYS){
-            if(options.CpiIfElse && str == P4LTL_KEYS_CPI) continue;
+            if(options.CpiIfElse && str == P4LTL_KEYS_CPI_MODEL)
+                continue;
             if(p4ltlSpec.find(str) != p4ltlSpec.end()){
                 for(auto spec:p4ltlSpec[str]){
                     cstring cont = ltlTranslator->translateP4LTL(spec);
                     std::cout << str << std::endl << " " << cont << std::endl;
-                    out << str << " " << cont << "\n";
+                    if(str == P4LTL_KEYS_CPI_SPEC) out << P4LTL_KEYS_CPI;
+                    else out << str;
+                    out << " " << cont << "\n";
                 }
             }
         }
@@ -3748,29 +3751,31 @@ void Translator::translate(const IR::P4Action *p4Action){
     }
     action.addDeclaration(")\n");
     incIndent();
-    if(!options.CpiIfElse){
-        bool existInSpec = false;
-        for(cstring str:P4LTL_KEYS){
-            if(p4ltlSpec.find(str) != p4ltlSpec.end()){
-                for(auto spec:p4ltlSpec[str]){
-                    if(ltlTranslator->isActionApplied(spec, actionName)){
-                        existInSpec = true;
-                        break;
-                    }
+
+    bool existInSpec = false;
+    for(cstring str:P4LTL_KEYS){
+        if(options.CpiIfElse && str == P4LTL_KEYS_CPI_MODEL)
+            continue;
+        if(p4ltlSpec.find(str) != p4ltlSpec.end()){
+            for(auto spec:p4ltlSpec[str]){
+                if(ltlTranslator->isActionApplied(spec, actionName)){
+                    existInSpec = true;
+                    break;
                 }
             }
-            if(existInSpec) break;
         }
-        if(existInSpec){
-            cstring actionIsApplied = actionName+".isApplied";
-            addDeclaration("var "+actionIsApplied+":bool;\n");
-            addGlobalVariables(actionIsApplied);
-            action.addStatement("\n    "+actionIsApplied+" := true;\n");
-            action.addModifiedGlobalVariables(actionIsApplied);
-            havocProcedure.addStatement("    "+actionIsApplied+" := false;\n");
-            havocProcedure.addModifiedGlobalVariables(actionIsApplied);
-        }
+        if(existInSpec) break;
     }
+    if(existInSpec){
+        cstring actionIsApplied = actionName+".isApplied";
+        addDeclaration("var "+actionIsApplied+":bool;\n");
+        addGlobalVariables(actionIsApplied);
+        action.addStatement("\n    "+actionIsApplied+" := true;\n");
+        action.addModifiedGlobalVariables(actionIsApplied);
+        havocProcedure.addStatement("    "+actionIsApplied+" := false;\n");
+        havocProcedure.addModifiedGlobalVariables(actionIsApplied);
+    }
+
     action.addStatement(translate(p4Action->body));
     decIndent();
     addProcedure(action);
@@ -3821,7 +3826,7 @@ void Translator::translate(const IR::P4Table *p4Table){
             }
         }
     }
-    else if(!options.CpiIfElse){
+    else {
         for(auto property:p4Table->properties->properties){
             if (auto key = property->value->to<IR::Key>()) {
                 for(auto keyElement:key->keyElements){
@@ -3830,6 +3835,8 @@ void Translator::translate(const IR::P4Table *p4Table){
                     cstring tableKeySpec = "Key("+name+","+expr+")";
                     bool existInSpec = false;
                     for(cstring str:P4LTL_KEYS){
+                        if(options.CpiIfElse && str == P4LTL_KEYS_CPI_MODEL)
+                            continue;
                         if(p4ltlSpec.find(str) != p4ltlSpec.end()){
                             for(auto spec:p4ltlSpec[str]){
                                 cstring cont = spec->toString();
@@ -3865,16 +3872,17 @@ void Translator::translate(const IR::P4Table *p4Table){
     bool ruleExist = false;
     if(options.CpiIfElse){
         bool firstRule = true;
-        if(p4ltlSpec.find(P4LTL_KEYS_CPI) != p4ltlSpec.end()){
-            for(auto spec:p4ltlSpec[P4LTL_KEYS_CPI]){
+        if(p4ltlSpec.find(P4LTL_KEYS_CPI_MODEL) != p4ltlSpec.end()){
+            for(auto spec:p4ltlSpec[P4LTL_KEYS_CPI_MODEL]){
                 CPIRule* rule = ltlTranslator->analyzeRule(spec);
                 if(rule != nullptr){
                     if(rule->getTable() == name){
                         ruleExist = true;
                         rule->show();
-                        cstring condition = getIndent()+"if(";
+                        cstring condition = "if(";
                         if(firstRule) firstRule = false;
                         else condition = "else "+condition;
+                        condition = getIndent()+condition;
                         bool first = true;
                         for(auto item:rule->getKeys()){
                             if(first) first = false;
@@ -3902,30 +3910,33 @@ void Translator::translate(const IR::P4Table *p4Table){
         } 
     }
 
-    if(!ruleExist) {
-        bool existInSpec = false;
-        cstring tableApplySpec = "Apply("+name;
-        for(cstring str:P4LTL_KEYS){
-            if(p4ltlSpec.find(str) != p4ltlSpec.end()){
-                for(auto spec:p4ltlSpec[str]){
-                    cstring cont = spec->toString();
-                    if(cont.find(tableApplySpec) != nullptr){
-                        existInSpec = true;
-                        break;
-                    }
+    bool existInSpec = false;
+    cstring tableApplySpec = "Apply("+name;
+    for(cstring str:P4LTL_KEYS){
+        if(options.CpiIfElse && str == P4LTL_KEYS_CPI_MODEL)
+                continue;
+        if(p4ltlSpec.find(str) != p4ltlSpec.end()){
+            for(auto spec:p4ltlSpec[str]){
+                cstring cont = spec->toString();
+                if(cont.find(tableApplySpec) != nullptr){
+                    existInSpec = true;
+                    break;
                 }
             }
-            if(existInSpec) break;
         }
-        if(existInSpec){
-            cstring tableIsApplied = name+".isApplied";
-            addDeclaration("var "+tableIsApplied+":bool;\n");
-            addGlobalVariables(tableIsApplied);
-            table.addStatement("\n    "+tableIsApplied+" := true;\n");
-            table.addModifiedGlobalVariables(tableIsApplied);
-            havocProcedure.addStatement("    "+tableIsApplied+" := false;\n");
-            havocProcedure.addModifiedGlobalVariables(tableIsApplied);
-        }
+        if(existInSpec) break;
+    }
+    if(existInSpec){
+        cstring tableIsApplied = name+".isApplied";
+        addDeclaration("var "+tableIsApplied+":bool;\n");
+        addGlobalVariables(tableIsApplied);
+        table.addStatement("\n    "+tableIsApplied+" := true;\n");
+        table.addModifiedGlobalVariables(tableIsApplied);
+        havocProcedure.addStatement("    "+tableIsApplied+" := false;\n");
+        havocProcedure.addModifiedGlobalVariables(tableIsApplied);
+    }
+
+    if(!ruleExist) {
 
         // std::cout << tableName << std::endl;
         cstring gotoStmt = getIndent()+"goto ";
