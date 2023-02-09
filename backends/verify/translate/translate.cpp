@@ -4100,6 +4100,22 @@ void Translator::translate(const IR::P4Table *p4Table){
         addDeclaration("var "+name+".hit : bool;\n");
     }
 
+    // default action
+    for(auto property:p4Table->properties->properties){
+        if (auto value = property->value->to<IR::ExpressionValue>()){
+            if(property->getName() == "default_action"){
+                table.addStatement(getIndent()+"else {\n");
+                incIndent();
+                cstring default_action = translate(value->expression);
+                table.addStatement(getIndent()+"call "+default_action+";\n");
+                decIndent();
+                table.addStatement(getIndent()+"}\n");
+                table.addSucc(default_action);
+                addPred(default_action, tableName);
+            }
+        }
+    }
+
     decIndent();
     addProcedure(table);
 }
