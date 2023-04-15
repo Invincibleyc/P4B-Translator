@@ -32,6 +32,8 @@ class P4VerifyOptions : public CompilerOptions {
 
     bool CpiIfElse = false;
 
+    bool tna = false;
+
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
                        [this](const char*) {
@@ -137,6 +139,12 @@ class P4VerifyOptions : public CompilerOptions {
                            gotoOrIf = false;
                            whileLoop = false;
                            bitBlasting = false;
+                           return true; },
+                       "use Ultimate Automizer as the backend");
+
+        registerOption("--tna", nullptr,
+                       [this](const char*) {
+                           tna = true;
                            return true; },
                        "use Ultimate Automizer as the backend");
 

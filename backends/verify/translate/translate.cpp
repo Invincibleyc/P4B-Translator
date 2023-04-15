@@ -1817,12 +1817,19 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 addPred(nextState, currentProcedure->getName());
             }            
         }
-        if(defaultCondition.size()>0){
-            currentProcedure->addStatement(getIndent()+"else{\n");
-            incIndent();
-            currentProcedure->addStatement(getIndent()+defaultBlock);
-            decIndent();
-            currentProcedure->addStatement(getIndent()+"}\n");
+        int casesSize = selectExpression->selectCases.size();
+        // if default case exists
+        if(flag){
+            if(casesSize == 1){
+                currentProcedure->addStatement(getIndent()+defaultBlock);
+            }
+            else{
+                currentProcedure->addStatement(getIndent()+"else{\n");
+                incIndent();
+                currentProcedure->addStatement(getIndent()+defaultBlock);
+                decIndent();
+                currentProcedure->addStatement(getIndent()+"}\n");
+            }
         }
     }
     return res;
@@ -3126,8 +3133,36 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
 
     if(instanceName != "") name = instanceName;
 
-    // std::cout << "**instance: " << typeName << " " << name << std::endl;
-    // std::cout << "**instance: " << instance->toString() << std::endl;
+    std::cout << "**instance: " << typeName << " " << name << std::endl;
+    std::cout << "**instance: " << instance->toString() << std::endl << std::endl;
+
+    if(options.tna){
+        if(typeName == "Pipeline"){
+            for(auto argument:*instance->arguments){
+                cstring procName = translate(argument->expression);
+                std::cout << "argument: " << procName << std::endl;
+                // cnt--;
+                // if(cnt != 0){
+                //     if(options.ultimateAutomizer){
+                //         if(auto typeParser = argument->expression->type->to<IR::Type_Parser>()){
+                //             procName = "_parser_"+procName;
+                //         }
+                //     }
+                //     main.addStatement(getIndent()+"call "+procName+"();\n");
+                //     main.addSucc(procName);
+                //     addPred(procName, name);
+                // }
+                // else
+                //     deparser = translate(argument->expression);
+            }
+        }   
+        if(typeName == "Switch"){
+            for(auto argument:*instance->arguments){
+                cstring procName = translate(argument->expression);
+                std::cout << "argument: " << procName << std::endl;
+            }
+        }
+    }
 
     if(typeName=="V1Switch"){
         BoogieProcedure main = BoogieProcedure(name);
