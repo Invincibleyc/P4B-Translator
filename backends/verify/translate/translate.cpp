@@ -1555,7 +1555,7 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
 //     return res;
 // }
 
-cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring stateName, cstring localDeclArg){
+cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring parserName, cstring stateName, cstring localDeclArg){
     cstring res = "";
     // goto Statement
     if(options.gotoOrIf){
@@ -1661,6 +1661,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                     continue;
                 flag = true;
                 cstring nextState = translate(selectCase->state);
+                nextState = parserName + "$" + nextState;
                 defaultBlock += "call "+nextState+"("+localDeclArg+");\n";
                 // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 currentProcedure->addSucc(nextState);
@@ -1809,6 +1810,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 incIndent();
                 if(options.addValidityAssertion) isIfStatement = false;
                 if(options.addValidityAssertion) addAssertionStatements();
+                nextState = parserName + "$" + nextState;
                 currentProcedure->addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
                 decIndent();
                 cnt++;
@@ -3632,29 +3634,45 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     }
     else{
         // parser.addStatement("    call start("+localDeclArg+");\n");
-        parser.addStatement("    call start();\n");
-        parser.addSucc("start");
-        addPred("start", parserName);
+        cstring startState = parserName+"$start";
+        parser.addStatement("    call "+startState+"();\n");
+        parser.addSucc(startState);
+        addPred(startState, parserName);
 
+        // add accept & reject
+        BoogieProcedure accept = BoogieProcedure(parserName+"$"+"accept");
+        // accept.addDeclaration("procedure {:inline 1} accept("+localDecl+")\n");
+        accept.addDeclaration("procedure {:inline 1} "+accept.getName()+"()\n");
+        accept.setImplemented();
+        addProcedure(accept);
 
-        parser.addSucc("accept");
-        addPred("accept", parserName);
+        BoogieProcedure reject = BoogieProcedure(parserName+"$"+"reject");
+        // reject.addDeclaration("procedure reject("+localDecl+");\n");
+        reject.addDeclaration("procedure  "+reject.getName()+"();\n");
+        reject.addDeclaration("    ensures drop==true;\n");
+        reject.addModifiedGlobalVariables("drop");
+        addProcedure(reject);
 
-        parser.addSucc("reject");
-        addPred("reject", parserName);
+        parser.addSucc(accept.getName());
+        addPred(accept.getName(), parserName);
+
+        parser.addSucc(reject.getName());
+        addPred(reject.getName(), parserName);
+        
         decIndent();
         addProcedure(parser);
         for(auto state:p4Parser->states){
-            translate(state);
+            translate(state, parserName);
             // translate(state, localDecl, localDeclArg);
         }
     }
     // TODO: parser local variables
 }
 
-void Translator::translate(const IR::ParserState *parserState, cstring localDecl, cstring localDeclArg){
+void Translator::translate(const IR::ParserState *parserState, cstring parserName, cstring localDecl, cstring localDeclArg){
     if(options.gotoOrIf){
         cstring stateName = parserState->name.toString();
+        stateName = parserName + "$" +stateName;
         cstring stateLabel = getIndent(); stateLabel += "    State$"; stateLabel += stateName;
         if(stateName=="accept" || stateName=="reject")
             return;
@@ -3680,7 +3698,7 @@ void Translator::translate(const IR::ParserState *parserState, cstring localDecl
                 // addPred(nextState, stateName);
             }
             else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
-                currentProcedure->addStatement(translate(selectExpression, stateName, localDeclArg));
+                currentProcedure->addStatement(translate(selectExpression, parserName, stateName, localDeclArg));
             }
         }
         // TODO: add succ
@@ -3689,6 +3707,12 @@ void Translator::translate(const IR::ParserState *parserState, cstring localDecl
     }
     else{
         cstring stateName = parserState->name.toString();
+
+        if(stateName=="accept" || stateName=="reject")
+            return;
+
+        stateName = parserName + "$" +stateName;
+
         BoogieProcedure state = BoogieProcedure(stateName);
         state.isParserState = true;
         currentProcedure = &state;
@@ -3700,14 +3724,14 @@ void Translator::translate(const IR::ParserState *parserState, cstring localDecl
         }
         if(parserState->selectExpression!=nullptr){
             if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
-                cstring nextState = translate(pathExpression);
+                cstring nextState = parserName+"$"+translate(pathExpression);
                 // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
                 state.addStatement(getIndent()+"call "+nextState+"();\n");
                 state.addSucc(nextState);
                 addPred(nextState, stateName);
             }
             else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
-                currentProcedure->addStatement(translate(selectExpression, stateName, localDeclArg));
+                currentProcedure->addStatement(translate(selectExpression, parserName, stateName, localDeclArg));
             }
         }
         decIndent();

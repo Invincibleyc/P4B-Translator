@@ -209,18 +209,18 @@ procedure {:inline 1} NoAction_9()
 // Control SwitchEgressDeparser_a
 procedure {:inline 1} SwitchEgressDeparser_a()
 {
-    hdr.ipv4.hdr_checksum := ipv4_checksum_1.update();
-    call pkt.emit(hdr.ethernet);
-    call pkt.emit(hdr.ipv4);
+    //hdr.ipv4.hdr_checksum := ipv4_checksum_1.update();
+    //call pkt.emit(hdr.ethernet);
+    //call pkt.emit(hdr.ipv4);
 }
 
 // Control SwitchEgressDeparser_b
 procedure {:inline 1} SwitchEgressDeparser_b()
 {
-    hdr.ipv4.hdr_checksum := ipv4_checksum_3.update();
-    call pkt.emit(hdr.ethernet);
-    call pkt.emit(hdr.ipv4);
-    call pkt.emit(hdr.custom_metadata);
+    //hdr.ipv4.hdr_checksum := ipv4_checksum_3.update();
+    //call pkt.emit(hdr.ethernet);
+    //call pkt.emit(hdr.ipv4);
+    //call pkt.emit(hdr.custom_metadata);
 }
 
 // Control SwitchEgress_a
@@ -238,10 +238,10 @@ procedure {:inline 1} SwitchEgress_b()
 // Control SwitchIngressDeparser_a
 procedure {:inline 1} SwitchIngressDeparser_a()
 {
-    hdr.ipv4.hdr_checksum := ipv4_checksum_0.update();
-    call pkt.emit(hdr.ethernet);
-    call pkt.emit(hdr.ipv4);
-    call pkt.emit(hdr.custom_metadata);
+    //hdr.ipv4.hdr_checksum := ipv4_checksum_0.update();
+    //call pkt.emit(hdr.ethernet);
+    //call pkt.emit(hdr.ipv4);
+    //call pkt.emit(hdr.custom_metadata);
 }
 
 // Control SwitchIngressDeparser_b
@@ -283,28 +283,141 @@ procedure ULTIMATE.start()
 procedure {:inline 1} _parser_SwitchEgressParser_a()
 	modifies drop;
 {
-    call start();
+    call _parser_SwitchEgressParser_a$start();
+}
+procedure {:inline 1} _parser_SwitchEgressParser_a$accept()
+{
+}
+
+//Parser State _parser_SwitchEgressParser_a$parse_ipv4
+procedure {:inline 1} _parser_SwitchEgressParser_a$parse_ipv4()
+{
+    hdr.ipv4.valid := true;
+    hdr.custom_metadata.valid := true;
+    call _parser_SwitchEgressParser_a$accept();
+}
+procedure  _parser_SwitchEgressParser_a$reject();
+    ensures drop==true;
+	modifies drop;
+
+//Parser State _parser_SwitchEgressParser_a$start
+procedure {:inline 1} _parser_SwitchEgressParser_a$start()
+	modifies drop;
+{
+    eg_intr_md.valid := true;
+    hdr.ethernet.valid := true;
+    if(hdr.ethernet.ether_type == 2048){
+        call _parser_SwitchEgressParser_a$parse_ipv4();
+    }
+    else{
+        call _parser_SwitchEgressParser_a$reject();
+    }
 }
 
 // Parser _parser_SwitchEgressParser_b
 procedure {:inline 1} _parser_SwitchEgressParser_b()
 	modifies drop;
 {
-    call start();
+    call _parser_SwitchEgressParser_b$start();
+}
+procedure {:inline 1} _parser_SwitchEgressParser_b$accept()
+{
+}
+
+//Parser State _parser_SwitchEgressParser_b$parse_ipv4
+procedure {:inline 1} _parser_SwitchEgressParser_b$parse_ipv4()
+{
+    hdr.ipv4.valid := true;
+    hdr.custom_metadata.valid := true;
+    call _parser_SwitchEgressParser_b$accept();
+}
+procedure  _parser_SwitchEgressParser_b$reject();
+    ensures drop==true;
+	modifies drop;
+
+//Parser State _parser_SwitchEgressParser_b$start
+procedure {:inline 1} _parser_SwitchEgressParser_b$start()
+	modifies drop;
+{
+    eg_intr_md.valid := true;
+    hdr.ethernet.valid := true;
+    if(hdr.ethernet.ether_type == 2048){
+        call _parser_SwitchEgressParser_b$parse_ipv4();
+    }
+    else{
+        call _parser_SwitchEgressParser_b$reject();
+    }
 }
 
 // Parser _parser_SwitchIngressParser_a
 procedure {:inline 1} _parser_SwitchIngressParser_a()
 	modifies drop;
 {
-    call start();
+    call _parser_SwitchIngressParser_a$start();
+}
+procedure {:inline 1} _parser_SwitchIngressParser_a$accept()
+{
+}
+
+//Parser State _parser_SwitchIngressParser_a$parse_ipv4
+procedure {:inline 1} _parser_SwitchIngressParser_a$parse_ipv4()
+{
+    hdr.ipv4.valid := true;
+    call _parser_SwitchIngressParser_a$accept();
+}
+procedure  _parser_SwitchIngressParser_a$reject();
+    ensures drop==true;
+	modifies drop;
+
+//Parser State _parser_SwitchIngressParser_a$start
+procedure {:inline 1} _parser_SwitchIngressParser_a$start()
+	modifies drop;
+{
+    ig_intr_md.valid := true;
+    ig_md.port_md := port_metadata_unpack(pkt);
+    hdr.ethernet.valid := true;
+    if(hdr.ethernet.ether_type == 2048){
+        call _parser_SwitchIngressParser_a$parse_ipv4();
+    }
+    else{
+        call _parser_SwitchIngressParser_a$reject();
+    }
 }
 
 // Parser _parser_SwitchIngressParser_b
 procedure {:inline 1} _parser_SwitchIngressParser_b()
 	modifies drop;
 {
-    call start();
+    call _parser_SwitchIngressParser_b$start();
+}
+procedure {:inline 1} _parser_SwitchIngressParser_b$accept()
+{
+}
+
+//Parser State _parser_SwitchIngressParser_b$parse_ipv4
+procedure {:inline 1} _parser_SwitchIngressParser_b$parse_ipv4()
+{
+    hdr.ipv4.valid := true;
+    hdr.custom_metadata.valid := true;
+    call _parser_SwitchIngressParser_b$accept();
+}
+procedure  _parser_SwitchIngressParser_b$reject();
+    ensures drop==true;
+	modifies drop;
+
+//Parser State _parser_SwitchIngressParser_b$start
+procedure {:inline 1} _parser_SwitchIngressParser_b$start()
+	modifies drop;
+{
+    ig_intr_md.valid := true;
+    ig_md.port_md := port_metadata_unpack(pkt);
+    hdr.ethernet.valid := true;
+    if(hdr.ethernet.ether_type == 2048){
+        call _parser_SwitchIngressParser_b$parse_ipv4();
+    }
+    else{
+        call _parser_SwitchIngressParser_b$reject();
+    }
 }
 procedure {:inline 1} accept()
 {
@@ -510,13 +623,6 @@ procedure {:inline 1} modify_eg_port_2(port:PortId_t)
     ig_tm_md.ucast_egress_port := port;
 }
 
-//Parser State parse_ipv4
-procedure {:inline 1} parse_ipv4()
-{
-    hdr.ipv4.valid := true;
-    call accept();
-}
-
 // Table pinning_0
 procedure {:inline 1} pinning_0.apply()
 {
@@ -558,21 +664,6 @@ procedure {:inline 1} set_color(index:meter_index_t)
 {
     tmp := meter_0.execute(index);
     qos_md_0.color := tmp;
-}
-
-//Parser State start
-procedure {:inline 1} start()
-	modifies drop;
-{
-    ig_intr_md.valid := true;
-    ig_md.port_md := port_metadata_unpack(pkt);
-    hdr.ethernet.valid := true;
-    if(hdr.ethernet.ether_type == 2048){
-        call parse_ipv4();
-    }
-    else{
-        call reject();
-    }
 }
 
 // Table stats_0

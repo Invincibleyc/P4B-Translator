@@ -1,6 +1,12 @@
 # P4B-Translator
 
-P4B-Translator is the translator from P4 to Boogie IVL. It is developed based on p4c, the P4 reference compiler.
+## Introduction
+
+P4B-Translator is the translator from [P4](https://p4.org/) to [Boogie IVL](https://github.com/boogie-org/boogie). It is developed based on [p4c](https://github.com/p4lang/p4c), the P4 reference compiler.
+
+## Implementation
+
+The source code of P4B can be found at [backends/verify](backends/verify).
 
 ## P4B Dependencies
 

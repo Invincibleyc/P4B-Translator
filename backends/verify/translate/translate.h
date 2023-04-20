@@ -142,7 +142,7 @@ public:
 	cstring translate(const IR::Member *member);
 	cstring translate(const IR::PathExpression *pathExpression);
 	cstring translate(const IR::Path *path);
-	cstring translate(const IR::SelectExpression *selectExpression, cstring stateName, cstring localDeclArg="");
+	cstring translate(const IR::SelectExpression *selectExpression, cstring parserName, cstring stateName, cstring localDeclArg="");
 	cstring translate(const IR::Argument *argument);
 	cstring translate(const IR::Constant *constant);
 	cstring translate(const IR::ConstructorCallExpression *constructorCallExpression);
@@ -186,7 +186,7 @@ public:
 	void translate(const IR::Type_Package *typePackage);
 
 	void translate(const IR::P4Parser *p4Parser);
-	void translate(const IR::ParserState *parserState, cstring localDecl="", cstring localDeclArg="");
+	void translate(const IR::ParserState *parserState, cstring parserName, cstring localDecl="", cstring localDeclArg="");
 	void translate(const IR::P4Control *p4Control);
 	void translate(const IR::Method *method);
 	void translate(const IR::P4Action *p4Action);
