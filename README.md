@@ -8,9 +8,16 @@ P4B-Translator is the translator from [P4](https://p4.org/) to [Boogie IVL](http
 
 The source code of P4B can be found at [backends/verify](backends/verify).
 
+- [bpl_verify/main.cpp](backends/verify/bpl_verify/main.cpp) implements the main function of P4B.
+- [translate/](backends/verify/translate/) contains the class definitions of P4B.
+  - [boogie_procedure.cpp](backends/verify/translate/boogie_procedure.cpp) and [boogie_statement.cpp](backends/verify/translate/boogie_statement.cpp) implement the translation of Boogie procedures and statements.
+  - [translate.cpp](backends/verify/translate/translate.cpp) implements the translation of P4 grammar nodes.
+  - [options.h](backends/verify/translate/options.h) provides the options supported by P4B.
+  - Other files are mainly used for verification purpose.
+
 ## P4B Dependencies
 
-- [here](#ubuntu-dependencies)
+- [Here](#ubuntu-dependencies)
 
 ## Build
 
@@ -24,6 +31,8 @@ sudo make install
 ```
 
 ## Commands
+
+P4B takes P4 programs as input.
 
 ```
 # Translate p4 into boogie for UAutomizer
