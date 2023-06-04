@@ -122,15 +122,17 @@ void Translator::addNecessaryProcedures(){
     // initStackIndex.addModifiedGlobalVariables("stack.index");
     // addProcedure(initStackIndex);
 
-    // BoogieProcedure extract = BoogieProcedure("packet_in.extract");
-    // extract.addDeclaration("procedure {:inline 1} packet_in.extract(header:Ref)\n");
-    // incIndent();
-    // extract.addStatement(getIndent()+"isValid[header] := true;\n");
-    // decIndent();
-    // extract.addDeclaration("procedure packet_in.extract(header:Ref);\n");
-    // extract.addDeclaration("    ensures (isValid[header] == true);\n");
-    // extract.addModifiedGlobalVariables("isValid");
-    // addProcedure(extract);
+    if(options.gotoOrIf){
+        BoogieProcedure extract = BoogieProcedure("packet_in.extract");
+        // extract.addDeclaration("procedure {:inline 1} packet_in.extract(header:Ref)\n");
+        // incIndent();
+        // extract.addStatement(getIndent()+"isValid[header] := true;\n");
+        // decIndent();
+        extract.addDeclaration("procedure packet_in.extract(header:Ref);\n");
+        extract.addDeclaration("    ensures (isValid[header] == true);\n");
+        extract.addModifiedGlobalVariables("isValid");
+        addProcedure(extract);
+    }
 
     BoogieProcedure setValid = BoogieProcedure("setValid");
     setValid.addDeclaration("procedure {:inline 1} setValid(header:Ref);\n");
@@ -1157,7 +1159,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         return "mark_to_drop()";
     }
 
-    if(method.find("packet_in.extract")){
+    if(!options.gotoOrIf && method.find("packet_in.extract")){
         cstring arg = "";
         for(auto argument:*methodCallExpression->arguments){
             arg = translate(argument);
@@ -1255,8 +1257,10 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         //         currentProcedure->removeLastStatement();
         //     }
         // }
-        return s.substr(0, idx-1)+".valid";
-        // return "isValid["+s.substr(0, idx-1)+"]";
+        if(options.gotoOrIf)
+            return "isValid["+s.substr(0, idx-1)+"]";
+        else
+            return s.substr(0, idx-1)+".valid";
         // std::cout << s.substr(0, idx-1) << std::endl;
         // std::cout << "find... " << i << std::endl;
     }
@@ -1577,7 +1581,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 flag = true;
                 cstring nextState = translate(selectCase->state);
 
-                defaultBlock += getIndent()+"goto "+"State$"+nextState+";\n";
+                defaultBlock += getIndent()+"goto "+"State$"+parserName+"$"+nextState+";\n";
                 // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 currentProcedure->addSucc(nextState);
                 addPred(nextState, currentProcedure->getName());
@@ -1630,7 +1634,7 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
 
                 res += condition;
                 res += ");\n";
-                res += getIndent()+"goto "+"State$"+nextState+";\n";
+                res += getIndent()+"goto "+"State$"+parserName+"$"+nextState+";\n";
                 // res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 // res += getIndent()+"goto Exit;\n";
                 currentProcedure->addSucc(nextState);
@@ -3614,7 +3618,12 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     }
 
     if(options.gotoOrIf){
-        parser.addStatement(getIndent()+"goto State$start;\n");
+        parser.addStatement(getIndent()+"goto State$"+parserName+"$start;\n");
+        for(auto state:p4Parser->states){
+            translate(state, parserName);
+            // translate(state, localDecl, localDeclArg);
+        }
+
         parser.addStatement("\n"+getIndent()+"State$accept:\n");
         parser.addStatement(getIndent()+"call accept();\n");
         parser.addStatement(getIndent()+"goto Exit;\n");
@@ -3622,15 +3631,13 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         parser.addStatement("\n"+getIndent()+"State$reject:\n");
         parser.addStatement(getIndent()+"call reject();\n");
         parser.addStatement(getIndent()+"goto Exit;\n");
+        addPred("reject", parserName);
+        parser.addSucc("reject");
 
         parser.addStatement("\n"+getIndent()+"Exit:\n");
 
-        addProcedure(parser);
-        for(auto state:p4Parser->states){
-            translate(state);
-            // translate(state, localDecl, localDeclArg);
-        }
         decIndent();
+        addProcedure(parser);
     }
     else{
         // parser.addStatement("    call start("+localDeclArg+");\n");
@@ -3690,7 +3697,7 @@ void Translator::translate(const IR::ParserState *parserState, cstring parserNam
         if(parserState->selectExpression!=nullptr){
             if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
                 cstring nextState = translate(pathExpression);
-                cstring nextStateLabel = "State$"+nextState;
+                cstring nextStateLabel = "State$"+parserName+"$"+nextState;
                 currentProcedure->addStatement(getIndent()+"goto "+nextStateLabel+";\n");
                 // currentProcedure->addSucc(nextS)
                 // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
@@ -4149,7 +4156,7 @@ void Translator::translate(const IR::P4Table *p4Table){
         }
 
         if(options.gotoOrIf){
-            // table.addStatement("\n    Exit:\n");
+            table.addStatement("\n    Exit:\n");
             // table.addStatement("        call "+tableName+"_table_exit();\n");
         }
         addDeclaration("var "+name+".action_run : "+name+".action;\n");
@@ -4163,14 +4170,16 @@ void Translator::translate(const IR::P4Table *p4Table){
     for(auto property:p4Table->properties->properties){
         if (auto value = property->value->to<IR::ExpressionValue>()){
             if(property->getName() == "default_action"){
-                table.addStatement(getIndent()+"else {\n");
-                incIndent();
-                cstring default_action = translate(value->expression);
-                table.addStatement(getIndent()+"call "+default_action+";\n");
-                decIndent();
-                table.addStatement(getIndent()+"}\n");
-                table.addSucc(default_action);
-                addPred(default_action, tableName);
+                if(!options.gotoOrIf){
+                    table.addStatement(getIndent()+"else {\n");
+                    incIndent();
+                    cstring default_action = translate(value->expression);
+                    table.addStatement(getIndent()+"call "+default_action+";\n");
+                    decIndent();
+                    table.addStatement(getIndent()+"}\n");
+                    table.addSucc(default_action);
+                    addPred(default_action, tableName);
+                }
             }
         }
     }

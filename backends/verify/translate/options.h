@@ -88,6 +88,13 @@ class P4VerifyOptions : public CompilerOptions {
                            return true; },
                        "1:goto, 0:if (default:0)");
 
+        registerOption("--goto", nullptr,
+                       [this](const char*) {
+                           gotoOrIf = true;
+                           return true; },
+                       "1:goto, 0:if (default:0)");
+
+
         /*
           Some verifier does not support bit-vector theory.
           Use integer instead of bitvector
@@ -111,13 +118,23 @@ class P4VerifyOptions : public CompilerOptions {
         /*
           Use Ultimate Automizer as backend
         */
+        // registerOption("--ua", nullptr,
+        //                [this](const char*) {
+        //                    ultimateAutomizer = true;
+        //                    bv2int = true;
+        //                    gotoOrIf = false;
+        //                    whileLoop = true;
+        //                    bitBlasting = true;
+        //                    return true; },
+        //                "use Ultimate Automizer as the backend");
         registerOption("--ua", nullptr,
                        [this](const char*) {
                            ultimateAutomizer = true;
                            bv2int = true;
                            gotoOrIf = false;
                            whileLoop = true;
-                           bitBlasting = true;
+                           bitBlasting = false;
+                           CpiIfElse = true;
                            return true; },
                        "use Ultimate Automizer as the backend");
 

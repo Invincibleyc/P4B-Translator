@@ -1,6 +1,7 @@
 frontends/p4/p4-lex.c
 frontends/p4/p4-parse.cpp
 py-compile
+TODO.md
 
 # vi/emacs tags files
 
